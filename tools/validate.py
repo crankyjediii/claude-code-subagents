@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+"""Validate source files, generated metadata, and local Markdown links."""
+from __future__ import annotations
+
+import json
+import re
+import sys
+from pathlib import Path
+from urllib.parse import unquote, urlsplit
+
+from sync import ROOT, frontmatter, generated, inventory
+
+
+def validate(root: Path = ROOT) -> list[str]:
+    errors = []
+    try:
+        config, records = inventory(root)
+        expected = generated(root)
+    except (ValueError, KeyError, OSError) as error:
+        return [str(error)]
+    for relative, content in expected.items():
+        path = root / relative
+        if not path.is_file() or path.read_text() != content:
+            errors.append(f'Stale generated file: {relative}; run python3 tools/sync.py')
+    market = json.loads(expected['.claude-plugin/marketplace.json'])
+    for entry in market['plugins']:
+        plugin_root = root / entry['source']
+        manifest = json.loads(expected[f"{entry['source'][2:]}/.claude-plugin/plugin.json"])
+        if manifest['name'] != entry['name']:
+            errors.append(f"Plugin names differ: {entry['name']}")
+        for file in (plugin_root / 'agents').glob('*.md'):
+            if not file.is_file() or not file.resolve().is_relative_to(plugin_root.resolve()):
+                errors.append(f'Plugin agent missing or outside root: {file}')
+    installer_fields, installer_body = frontmatter(root / 'agent-installer.md')
+    if installer_fields.get('name') != 'agent-installer' or '--standalone' not in installer_body:
+        errors.append('Standalone agent installer is incomplete')
+    expected_repo = config['repository']
+    for relative in ('README.md', 'agent-installer.md', 'install-agents.sh'):
+        if expected_repo not in (root / relative).read_text():
+            errors.append(f'Repository identity is missing from {relative}')
+    if not (root / 'LICENSE').read_text().startswith('MIT License\n'):
+        errors.append('MIT license missing')
+    bodies = {}
+    for record in records:
+        _, body = frontmatter(root / record['path'])
+        if body in bodies:
+            errors.append(f"Identical agent bodies: {record['path']} and {bodies[body]}")
+        bodies[body] = record['path']
+    for file in sorted(root.rglob('*.md')):
+        if '.git' in file.parts:
+            continue
+        text = file.read_text()
+        # Fenced snippets are not documentation links.
+        text = re.sub(r'```.*?```', '', text, flags=re.DOTALL)
+        for target in re.findall(r'!?\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)', text):
+            split = urlsplit(target.strip('<>'))
+            if split.scheme or split.netloc or not split.path:
+                continue
+            dest = (file.parent / unquote(split.path)).resolve()
+            if not dest.is_relative_to(root.resolve()) or not dest.exists():
+                errors.append(f'{file.relative_to(root)}: broken or escaping local link {target}')
+    return errors
+
+
+def main() -> int:
+    errors = validate()
+    if errors:
+        print('\n'.join(errors), file=sys.stderr)
+        return 1
+    _, records = inventory()
+    print(f'Validated {len(records)} category agents, the standalone agent installer, 10 plugins, generated metadata, and local links.')
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

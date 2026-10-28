@@ -1,0 +1,16 @@
+name: Bug report
+description: Report an installer, plugin, or agent-definition problem.
+body:
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Include the command or agent invocation, OS, and relevant versions. Remove credentials and private data.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and observed behavior
+    validations:
+      required: true

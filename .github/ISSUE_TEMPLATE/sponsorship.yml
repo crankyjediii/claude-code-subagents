@@ -1,0 +1,25 @@
+name: Sponsorship inquiry
+description: Ask about an explicitly labeled README sponsor listing.
+title: Sponsorship inquiry
+body:
+  - type: markdown
+    attributes:
+      value: This is a public issue. Do not include private contact details or billing information. Sponsorship does not permit promotional agent definitions.
+  - type: input
+    id: organization
+    attributes:
+      label: Organization or project name
+    validations:
+      required: true
+  - type: input
+    id: website
+    attributes:
+      label: Public website
+    validations:
+      required: true
+  - type: textarea
+    id: inquiry
+    attributes:
+      label: Listing request
+    validations:
+      required: true

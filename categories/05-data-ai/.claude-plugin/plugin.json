@@ -1,0 +1,10 @@
+{
+  "name": "voltagent-data-ai",
+  "version": "1.0.0",
+  "description": "Data and AI: 17 task-focused Claude Code agents.",
+  "author": {
+    "name": "Collection contributors"
+  },
+  "repository": "https://github.com/crankyjediii/claude-code-subagents",
+  "license": "MIT"
+}

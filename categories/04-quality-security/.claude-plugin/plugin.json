@@ -1,0 +1,10 @@
+{
+  "name": "voltagent-quality",
+  "version": "1.0.0",
+  "description": "Quality and security: 17 task-focused Claude Code agents.",
+  "author": {
+    "name": "Collection contributors"
+  },
+  "repository": "https://github.com/crankyjediii/claude-code-subagents",
+  "license": "MIT"
+}

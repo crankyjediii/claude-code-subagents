@@ -1,0 +1,17 @@
+name: Agent request
+description: Propose a specific development task for a new specialist.
+body:
+  - type: textarea
+    id: task
+    attributes:
+      label: Development task
+      description: Give a concrete invocation, expected output, and category.
+    validations:
+      required: true
+  - type: textarea
+    id: difference
+    attributes:
+      label: Difference from existing agents
+      description: Explain the workflow or failure checks the current collection does not cover.
+    validations:
+      required: true

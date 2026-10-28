@@ -1,0 +1,10 @@
+{
+  "name": "voltagent-infra",
+  "version": "1.0.0",
+  "description": "Infrastructure and operations: 17 task-focused Claude Code agents.",
+  "author": {
+    "name": "Collection contributors"
+  },
+  "repository": "https://github.com/crankyjediii/claude-code-subagents",
+  "license": "MIT"
+}

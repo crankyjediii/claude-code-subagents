@@ -1,0 +1,55 @@
+name: Validate collection
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  collection:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate metadata and links
+        run: python3 tools/validate.py
+      - name: Test isolated installer targets
+        run: python3 -m unittest discover -s tests -v
+      - name: Check Bash syntax
+        run: bash -n install-agents.sh
+      - name: Install ShellCheck
+        run: |
+          if [ "$RUNNER_OS" = macOS ]; then
+            brew install shellcheck
+          else
+            sudo apt-get update
+            sudo apt-get install -y shellcheck
+          fi
+      - name: Check shell semantics
+        run: shellcheck install-agents.sh
+  claude-manifests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Claude Code validator
+        run: npm install --global @anthropic-ai/claude-code
+      - name: Validate manifests and actual component discovery
+        run: python3 tools/check_plugins.py

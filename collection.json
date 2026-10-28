@@ -1,0 +1,58 @@
+{
+  "repository": "crankyjediii/claude-code-subagents",
+  "branch": "main",
+  "marketplace": "voltagent-subagents",
+  "version": "1.0.0",
+  "categories": [
+    {
+      "directory": "01-core-development",
+      "title": "Core development",
+      "plugin": "voltagent-core-dev"
+    },
+    {
+      "directory": "02-language-specialists",
+      "title": "Language specialists",
+      "plugin": "voltagent-lang"
+    },
+    {
+      "directory": "03-infrastructure",
+      "title": "Infrastructure and operations",
+      "plugin": "voltagent-infra"
+    },
+    {
+      "directory": "04-quality-security",
+      "title": "Quality and security",
+      "plugin": "voltagent-quality"
+    },
+    {
+      "directory": "05-data-ai",
+      "title": "Data and AI",
+      "plugin": "voltagent-data-ai"
+    },
+    {
+      "directory": "06-developer-experience",
+      "title": "Developer experience",
+      "plugin": "voltagent-dx"
+    },
+    {
+      "directory": "07-specialized-domains",
+      "title": "Specialized domains",
+      "plugin": "voltagent-domains"
+    },
+    {
+      "directory": "08-business-product",
+      "title": "Product and delivery",
+      "plugin": "voltagent-product"
+    },
+    {
+      "directory": "09-meta-orchestration",
+      "title": "Meta orchestration",
+      "plugin": "voltagent-meta"
+    },
+    {
+      "directory": "10-research-analysis",
+      "title": "Research and analysis",
+      "plugin": "voltagent-research"
+    }
+  ]
+}

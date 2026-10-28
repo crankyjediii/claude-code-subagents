@@ -1,0 +1,62 @@
+{
+  "name": "voltagent-subagents",
+  "owner": {
+    "name": "Collection contributors"
+  },
+  "metadata": {
+    "description": "170 development subagents in 10 category plugins.",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "voltagent-core-dev",
+      "source": "./categories/01-core-development",
+      "description": "Core development: 17 task-focused Claude Code agents."
+    },
+    {
+      "name": "voltagent-lang",
+      "source": "./categories/02-language-specialists",
+      "description": "Language specialists: 17 task-focused Claude Code agents."
+    },
+    {
+      "name": "voltagent-infra",
+      "source": "./categories/03-infrastructure",
+      "description": "Infrastructure and operations: 17 task-focused Claude Code agents."
+    },
+    {
+      "name": "voltagent-quality",
+      "source": "./categories/04-quality-security",
+      "description": "Quality and security: 17 task-focused Claude Code agents."
+    },
+    {
+      "name": "voltagent-data-ai",
+      "source": "./categories/05-data-ai",
+      "description": "Data and AI: 17 task-focused Claude Code agents."
+    },
+    {
+      "name": "voltagent-dx",
+      "source": "./categories/06-developer-experience",
+      "description": "Developer experience: 17 task-focused Claude Code agents."
+    },
+    {
+      "name": "voltagent-domains",
+      "source": "./categories/07-specialized-domains",
+      "description": "Specialized domains: 17 task-focused Claude Code agents."
+    },
+    {
+      "name": "voltagent-product",
+      "source": "./categories/08-business-product",
+      "description": "Product and delivery: 17 task-focused Claude Code agents."
+    },
+    {
+      "name": "voltagent-meta",
+      "source": "./categories/09-meta-orchestration",
+      "description": "Meta orchestration: 17 task-focused Claude Code agents."
+    },
+    {
+      "name": "voltagent-research",
+      "source": "./categories/10-research-analysis",
+      "description": "Research and analysis: 17 task-focused Claude Code agents."
+    }
+  ]
+}
