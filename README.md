@@ -8,6 +8,7 @@
 
 <p align="center">
   <a href="#categories"><img src="docs/agent-count.svg" alt="Subagent count" /></a>
+  <a href="https://github.com/crankyjediii/claude-code-subagents/releases/latest"><img src="https://img.shields.io/github/v/release/crankyjediii/claude-code-subagents?label=release" alt="Latest release" /></a>
   <a href="https://github.com/crankyjediii/claude-code-subagents/actions/workflows/validate.yml"><img src="https://github.com/crankyjediii/claude-code-subagents/actions/workflows/validate.yml/badge.svg" alt="Validation status" /></a>
   <a href="https://github.com/crankyjediii/claude-code-subagents/commits/main"><img src="https://img.shields.io/github/last-commit/crankyjediii/claude-code-subagents/main?label=last%20update" alt="Last update" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-c8ec9a?labelColor=263b31" alt="MIT license" /></a>
@@ -22,6 +23,8 @@
 Each agent has a specific routing trigger, a workflow, a concrete example task, and checks for its result. Definitions inherit your session's model. Tool access varies by role: a code reviewer can inspect files, an implementation agent can edit and run commands, and research agents can fetch sources. See [tool profiles](docs/USAGE.md#tool-profiles) before extending them.
 
 ## Installation
+
+For versioned downloads, use the [latest release](https://github.com/crankyjediii/claude-code-subagents/releases/latest): full source archives, ten category plugin ZIPs, a commit-pinned installer, and SHA-256 checksums. See [release verification](docs/INSTALLATION.md#versioned-release-downloads).
 
 ### Category plugins
 

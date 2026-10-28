@@ -12,5 +12,6 @@ This repository distributes Markdown subagents, ten category plugins, and a Bash
 - Stage and verify downloads before locking the target; recheck conflicts under the lock before writes. Category removal selects only managed members. Keep agent and state writes atomic per file and describe whole-batch recovery limits accurately.
 - Run `python3 tools/validate.py`, `python3 -m unittest discover -s tests -v`, and `shellcheck install-agents.sh`. Validate the marketplace and each category using `claude plugin validate` when the CLI is available.
 - Tests use temporary directories. Do not install agents into the contributor's actual user scope as a verification shortcut.
+- Release assets come from committed Git trees via `tools/release.py`. Run `tools/check_release.py` against the exact assets before publication. Every plugin must include LICENSE. Never replace assets on an already public release.
 
 Maintenance uses Python 3.10+ with the standard library. Installation uses Bash and ordinary Unix utilities; remote downloads additionally need curl. Do not add a Python dependency to the user installer.

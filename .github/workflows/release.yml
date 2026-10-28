@@ -1,0 +1,63 @@
+name: Publish release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    uses: ./.github/workflows/validate.yml
+  publish:
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Require a release from main
+        run: git merge-base --is-ancestor HEAD origin/main
+      - name: Install the pinned plugin validator
+        run: |
+          SUBAGENT_CLI_VERSION=$(python3 -c 'import json; print(json.load(open("collection.json"))["validation"]["claude-code"])')
+          npm install --global "@anthropic-ai/claude-code@$SUBAGENT_CLI_VERSION"
+      - name: Build deterministic assets and match the tag
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python3 tools/release.py --ref "$RELEASE_TAG" --tag "$RELEASE_TAG" --output dist
+      - name: Verify the exact distribution artifacts
+        run: python3 tools/check_release.py dist --online
+      - name: Prepare release notes
+        run: python3 tools/release.py --notes > "$RUNNER_TEMP/release-notes.md"
+      - name: Upload all assets before publishing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft > "$RUNNER_TEMP/release-state" 2>/dev/null; then
+            if [ "$(cat "$RUNNER_TEMP/release-state")" != true ]; then
+              echo 'This version is already public; refusing to replace its assets.' >&2
+              exit 1
+            fi
+            gh release upload "$RELEASE_TAG" dist/* --clobber
+            gh release edit "$RELEASE_TAG" --notes-file "$RUNNER_TEMP/release-notes.md"
+          else
+            gh release create "$RELEASE_TAG" dist/* --verify-tag --draft --title "$RELEASE_TAG" --notes-file "$RUNNER_TEMP/release-notes.md"
+          fi
+          gh release edit "$RELEASE_TAG" --draft=false --latest

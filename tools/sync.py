@@ -123,6 +123,7 @@ def generated(root: Path = ROOT) -> dict[str, str | bytes]:
                     'repository': repo_url, 'homepage': repo_url, 'license': 'MIT',
                     'keywords': ['claude-code', 'subagents', folder[3:]]}
         outputs[f'categories/{folder}/.claude-plugin/plugin.json'] = encoded(manifest)
+        outputs[f'categories/{folder}/LICENSE'] = (root / 'LICENSE').read_text()
         entries.append({'name': plugin, 'source': f'./categories/{folder}',
                         'description': manifest['description']})
         note = ''

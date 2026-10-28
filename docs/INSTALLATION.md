@@ -8,6 +8,29 @@ Plugin installation needs Claude Code. The shell installer needs Bash 3.2+ and s
 
 The installer is tested on Linux and macOS. On Windows, use an appropriate Unix environment such as WSL; native PowerShell execution has not been tested.
 
+Plugin validation and discovery are tested with Claude Code 2.1.309. That is a tested version, not a claim that every older version is unsupported. Maintenance uses Python 3.10+; CI runs Python 3.12.
+
+## Versioned release downloads
+
+The [latest release](https://github.com/crankyjediii/claude-code-subagents/releases/latest) includes source ZIP and tar archives, ten separately packaged category plugins, `install-agents.sh`, `release-manifest.json`, and `SHA256SUMS`.
+
+The downloadable installer defaults to the release's full source commit. Unlike the script from a rolling main checkout, it does not need an extra `--ref` to keep agent downloads on that revision:
+
+```sh
+curl --fail --location --proto '=https' --proto-redir '=https' \
+  https://github.com/crankyjediii/claude-code-subagents/releases/download/v1.1.0/install-agents.sh \
+  -o install-agents.sh
+bash install-agents.sh --help
+```
+
+Review the script, then run `bash install-agents.sh --install python-specialist --project .` or use its interactive browser. `--repo` and `--ref` remain explicit overrides. `--help` prints the actual default source.
+
+To verify every attached file, download the complete asset set into one directory and run `sha256sum -c SHA256SUMS` on Linux or `shasum -a 256 -c SHA256SUMS` on macOS. When downloading only one asset, compare its computed SHA-256 with that asset's line in `SHA256SUMS`. These checks verify transfer integrity, not an independent publisher signature.
+
+Each category ZIP contains one plugin directory with its definitions, README, manifest, artwork, and MIT license. Extract it and use `claude --plugin-dir ./voltagent-lang` to load that category locally, or use the marketplace for managed installation and updates.
+
+Source archives contain the complete maintained repository. Their included script retains the rolling-main default for standalone mode; use the separate pinned installer asset or supply the release's commit with `--ref` when running a source-archive script remotely.
+
 ## Plugin installation
 
 ```sh

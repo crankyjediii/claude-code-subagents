@@ -51,7 +51,7 @@ Sources:
   --local DIRECTORY            Use a local repository without network access
   --standalone                 Fetch from GitHub even beside a local clone
   --repo OWNER/REPOSITORY       GitHub repository to fetch
-  --ref REF                    Branch, tag, or commit (default: main)
+  --ref REF                    Branch, tag, or commit (see default source below)
 
 Other options:
   --force                      Back up and replace/remove conflicting files
@@ -62,6 +62,7 @@ Explicit install/uninstall commands execute without an extra prompt.
 Remote operations require curl and sha256sum or shasum. Pin --ref to a commit
 for repeatable downloads. --force never follows file or state symlinks.
 USAGE
+    printf '\nDefault source: %s@%s\n' "$REPOSITORY" "$REF"
 }
 
 die() { printf 'Error: %s\n' "$*" >&2; exit 1; }
