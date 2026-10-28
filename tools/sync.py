@@ -9,6 +9,8 @@ import re
 import sys
 from pathlib import Path
 
+from branding import assets
+
 ROOT = Path(__file__).resolve().parents[1]
 SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*\Z")
 START, END = '<!-- catalog:start -->', '<!-- catalog:end -->'
@@ -57,7 +59,15 @@ def inventory(root: Path = ROOT) -> tuple[dict, list[dict]]:
         if not SLUG.fullmatch(plugin) or plugin in plugins:
             raise ValueError(f'Invalid or duplicate plugin: {plugin}')
         plugins.add(plugin)
-        files = sorted((root / 'categories' / folder / 'agents').glob('*.md'))
+        category_root = root / 'categories' / folder
+        agents_root = category_root / 'agents'
+        if category_root.is_symlink() or agents_root.is_symlink():
+            raise ValueError(f'Category and agent directories may not be symlinks: {folder}')
+        files = sorted(agents_root.glob('*.md'))
+        if set(agents_root.rglob('*.md')) != set(files):
+            raise ValueError(f'Nested agent definitions are not supported by the flat catalog: {folder}')
+        if any(path.name != 'README.md' for path in category_root.glob('*.md')):
+            raise ValueError(f'Agent definition outside agents directory: {folder}')
         if not files:
             raise ValueError(f'Empty category: {folder}')
         for path in files:
@@ -75,7 +85,7 @@ def inventory(root: Path = ROOT) -> tuple[dict, list[dict]]:
             allowed = {'Read', 'Glob', 'Grep', 'Bash', 'Write', 'Edit', 'Agent', 'WebFetch', 'WebSearch'}
             if not set(tools) <= allowed or len(tools) != len(set(tools)):
                 raise ValueError(f'Unknown or duplicate tools: {path}')
-            if len(body.split()) < 160 or any(h not in body for h in ('## Approach', '## Task boundaries', '## Completion')):
+            if len(body.split()) < 160 or any(h not in body for h in ('## Scope and tool use', '## Approach', '## Task boundaries', '## Example task', '## Completion')):
                 raise ValueError(f'Incomplete agent instructions: {path}')
             if re.search(r'\b(TODO|FIXME|PLACEHOLDER)\b', body):
                 raise ValueError(f'Unfinished agent: {path}')
@@ -92,11 +102,17 @@ def encoded(value: object) -> str:
     return json.dumps(value, indent=2, ensure_ascii=False) + '\n'
 
 
-def generated(root: Path = ROOT) -> dict[str, str]:
+def generated(root: Path = ROOT) -> dict[str, str | bytes]:
     config, records = inventory(root)
     repo_url = f"https://github.com/{config['repository']}"
     outputs = {}
     entries, index = [], []
+    index.extend(['| Category | Plugin | Agents |', '| :-- | :-- | --: |'])
+    for category in config['categories']:
+        group = [r for r in records if r['directory'] == category['directory']]
+        number = category['directory'][:2]
+        index.append(f"| [{number} · {category['title']}](categories/{category['directory']}/README.md) | `{category['plugin']}` | {len(group)} |")
+    index.extend(['', 'Expand a category to browse its agents.', ''])
     catalog = []
     for category in config['categories']:
         group = [r for r in records if r['directory'] == category['directory']]
@@ -104,7 +120,8 @@ def generated(root: Path = ROOT) -> dict[str, str]:
         manifest = {'name': plugin, 'version': config['version'],
                     'description': f'{title}: {len(group)} task-focused Claude Code agents.',
                     'author': {'name': 'Collection contributors'},
-                    'repository': repo_url, 'license': 'MIT'}
+                    'repository': repo_url, 'homepage': repo_url, 'license': 'MIT',
+                    'keywords': ['claude-code', 'subagents', folder[3:]]}
         outputs[f'categories/{folder}/.claude-plugin/plugin.json'] = encoded(manifest)
         entries.append({'name': plugin, 'source': f'./categories/{folder}',
                         'description': manifest['description']})
@@ -114,14 +131,15 @@ def generated(root: Path = ROOT) -> dict[str, str]:
                     'They discover available agents and provide a sequential fallback when delegation is unavailable.\n')
         cat_lines = [f'# {title}', '', f'Plugin: `{plugin}` · {len(group)} agents', note,
                      '```sh', f"claude plugin install {plugin}@{config['marketplace']}", '```', '']
-        index.extend([f'### {title}', '', f'[`{folder}`](categories/{folder}/README.md) · `{plugin}` · {len(group)} agents', ''])
+        index.extend(['<details>', f'<summary><strong>{folder[:2]} · {title}</strong> · {len(group)} agents</summary>', '',
+                      f'Plugin: `{plugin}` · [Category guide](categories/{folder}/README.md)', ''])
         for r in group:
             description = r['description'].removeprefix('Use when you need to ')
             description = description[0].upper() + description[1:]
             cat_lines.append(f"- [{r['name']}](agents/{r['name']}.md): {description}")
             index.append(f"- [{r['name']}]({r['path']}): {description}")
             catalog.append('|'.join(str(r[k]) for k in ('directory', 'plugin', 'name', 'description', 'path', 'sha256')))
-        index.append('')
+        index.extend(['', '</details>', ''])
         outputs[f'categories/{folder}/README.md'] = '\n'.join(cat_lines).rstrip() + '\n'
     outputs['.claude-plugin/marketplace.json'] = encoded({
         'name': config['marketplace'], 'owner': {'name': 'Collection contributors'},
@@ -129,6 +147,7 @@ def generated(root: Path = ROOT) -> dict[str, str]:
                      'version': config['version']}, 'plugins': entries})
     outputs['tools/catalog.tsv'] = '\n'.join(catalog) + '\n'
     count = len(records)
+    outputs.update(assets(count, config['categories']))
     outputs['docs/agent-count.svg'] = (
         f'<svg xmlns="http://www.w3.org/2000/svg" width="146" height="20" role="img" aria-label="subagents: {count}">'
         '<title>Subagent count</title><rect width="100" height="20" fill="#394150"/>'
@@ -156,11 +175,12 @@ def main() -> int:
         changed = []
         for relative, content in outputs.items():
             path = ROOT / relative
-            if not path.exists() or path.read_text() != content:
+            data = content if isinstance(content, bytes) else content.encode('utf-8')
+            if not path.exists() or path.read_bytes() != data:
                 changed.append(relative)
                 if not args.check:
                     path.parent.mkdir(parents=True, exist_ok=True)
-                    path.write_text(content, encoding='utf-8')
+                    path.write_bytes(data)
         if changed and args.check:
             print('Generated files are stale. Run python3 tools/sync.py:\n' + '\n'.join(changed), file=sys.stderr)
             return 1

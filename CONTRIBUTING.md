@@ -9,12 +9,14 @@ Use vendor-neutral criteria. A language or framework specialist may discuss its 
 1. Look for an existing specialist with the same responsibility. Improve that file when the proposed agent would duplicate its trigger and workflow.
 2. Put the definition in the matching `categories/NN-category/agents/` directory with a lowercase hyphenated filename. Agent names are unique across the collection and match filenames.
 3. Use this repository's frontmatter subset: `name`, a JSON-quoted `description`, a comma-separated `tools` scalar, and `model: inherit`. JSON-quoted strings are valid YAML and keep maintenance dependency-free. The description should be 20–240 characters and explain the routing trigger. Supported tools are Read, Glob, Grep, Bash, Write, Edit, Agent, WebFetch, and WebSearch; include only what the task requires.
-4. Write a standalone body of at least 160 words with `## Approach`, `## Task boundaries`, and `## Completion`. The length check is a floor, not a reason to add filler. Give concrete task-specific checks. Do not refer to a private instruction file, require another agent implicitly, embed credentials, or instruct permission bypasses.
+4. Write a standalone body of at least 160 words with `## Scope and tool use`, `## Approach`, `## Task boundaries`, `## Example task`, and `## Completion`. The length check is a floor, not a reason to add filler. Give concrete task-specific checks and distinguish overlapping specialists. Do not refer to a private instruction file, require another agent implicitly, embed credentials, or instruct permission bypasses.
 5. Run `python3 tools/sync.py`. Do not edit generated catalog entries, category indexes, count badges, or manifests by hand.
-6. Run the checks below and explain the behavior or coverage your change adds in the pull request.
+6. Review the changed definition's routing, example request, expected behavior, and tools. Add or update its record in `evals/cases.jsonl` and record the SHA-256 of the definition actually reviewed. Keep `execution_status: not-run` in this illustrative case set; record real model experiments separately. Do not advance a digest without reviewing the changed instructions. Run `python3 tools/audit_agents.py` to refresh the review index.
+7. Run the checks below and explain the behavior or coverage your change adds in the pull request.
 
 ```sh
 python3 tools/validate.py
+python3 tools/audit_agents.py --check
 python3 -m unittest discover -s tests -v
 shellcheck install-agents.sh
 claude plugin validate .
@@ -23,6 +25,8 @@ claude plugin validate .
 Changes to installer behavior need regression tests with temporary homes and targets. Do not write tests into a contributor's real `.claude/` directory. Test network behavior through the fixture downloader and check the real raw-download path after publication.
 
 The ten categories and their plugin names are defined in `collection.json`. Changing numbering, folders, or plugin names is a compatibility change. Coordinate all references and migration instructions. `voltagent-meta` must keep its documented dependency on available specialists and a fallback for unavailable delegation.
+
+Agent directories are flat. A nested Markdown file would load recursively in Claude Code but would fall outside the flat installer catalog, so validation rejects it. Review profiles with no execution must not gain Bash, Write, Edit, or Agent silently. Update profile documentation and the review record when capabilities change.
 
 Keep descriptions specific and short. Do not claim that a prompt guarantees security, correctness, or test execution. Distinguish checks actually run from suggested checks. Use real sources for external factual claims.
 

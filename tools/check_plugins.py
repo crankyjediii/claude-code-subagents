@@ -25,13 +25,14 @@ def main() -> int:
                 raise RuntimeError(f'claude {" ".join(args)} failed:\n{result.stdout}\n{result.stderr}')
             return result.stdout
 
-        run('plugin', 'validate', str(ROOT))
+        print(run('--version').strip())
+        run('plugin', 'validate', '--strict', str(ROOT))
         run('plugin', 'marketplace', 'add', str(ROOT))
         for category in config['categories']:
             plugin = category['plugin']
             folder = ROOT / 'categories' / category['directory']
             expected = [r['name'] for r in records if r['plugin'] == plugin]
-            run('plugin', 'validate', str(folder))
+            run('plugin', 'validate', '--strict', '--profile', 'directory', str(folder))
             run('plugin', 'install', f'{plugin}@{config["marketplace"]}')
             details = run('plugin', 'details', plugin)
             count = re.search(r'Agents \((\d+)\)', details)

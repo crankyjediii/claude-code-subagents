@@ -1,61 +1,66 @@
-# Claude Code Subagents
+<p align="center">
+  <img src="docs/assets/banner.svg" alt="Claude Code Subagents. A specialist for the next task." width="100%" />
+</p>
 
-![Subagent count](docs/agent-count.svg)
-![Last update](https://img.shields.io/github/last-commit/crankyjediii/claude-code-subagents/main?label=last%20update)
-[![MIT license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+<h1 align="center">Claude Code Subagents</h1>
 
-170 standalone development agents in 10 categories. Install a category as a Claude Code plugin, or copy individual agents into your project or user agents directory.
+<p align="center">Task-focused agents for building, reviewing, debugging, and operating software.</p>
 
-Each definition includes a routing description, a task-specific workflow, failure checks, and a completion contract. Agents inherit the session model and use the tools listed in their frontmatter. They contain no hooks, bundled executables, external service connections, or product endorsements.
+<p align="center">
+  <a href="#categories"><img src="docs/agent-count.svg" alt="Subagent count" /></a>
+  <a href="https://github.com/crankyjediii/claude-code-subagents/actions/workflows/validate.yml"><img src="https://github.com/crankyjediii/claude-code-subagents/actions/workflows/validate.yml/badge.svg" alt="Validation status" /></a>
+  <a href="https://github.com/crankyjediii/claude-code-subagents/commits/main"><img src="https://img.shields.io/github/last-commit/crankyjediii/claude-code-subagents/main?label=last%20update" alt="Last update" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-c8ec9a?labelColor=263b31" alt="MIT license" /></a>
+</p>
 
-## Install category plugins
+<p align="center">
+  <a href="#installation">Install</a> · <a href="#usage">Use an agent</a> · <a href="#categories">Browse categories</a> · <a href="#quality">Quality and audit</a> · <a href="CONTRIBUTING.md">Contribute</a>
+</p>
 
-Run these commands in your terminal with Claude Code installed:
+170 standalone development agents in 10 categories. Install the categories you use as Claude Code plugins, or copy individual Markdown definitions into a project or your user agents directory.
+
+Each agent has a specific routing trigger, a workflow, a concrete example task, and checks for its result. Definitions inherit your session's model. Tool access varies by role: a code reviewer can inspect files, an implementation agent can edit and run commands, and research agents can fetch sources. See [tool profiles](docs/USAGE.md#tool-profiles) before extending them.
+
+## Installation
+
+### Category plugins
 
 ```sh
 claude plugin marketplace add crankyjediii/claude-code-subagents
 claude plugin install voltagent-core-dev@voltagent-subagents
-claude plugin install voltagent-quality@voltagent-subagents
 ```
 
-Use `claude plugin install <plugin-name>@voltagent-subagents` for any category in the index. To try a local checkout:
+Choose a plugin from the [category index](#categories). Use the full `plugin@voltagent-subagents` identifier so Claude Code resolves it from this marketplace.
 
 ```sh
-claude plugin marketplace add .
-claude plugin install voltagent-lang@voltagent-subagents
+claude plugin install voltagent-lang@voltagent-subagents     # Language specialists
+claude plugin install voltagent-quality@voltagent-subagents  # Review, testing, security
 ```
 
-After installation, start a new Claude Code session and inspect `/agents`. Ask for a specialist explicitly, for example: “Use the code-reviewer agent from voltagent-quality to review the current diff.” Existing sessions may need a restart to discover copied files.
+> `voltagent-meta` works best with specialists from other categories installed. Its agents check which tools and specialists are available and provide a parent-executable plan when delegation is unavailable.
 
-`voltagent-meta` works best with other categories installed. Its agents inspect the available specialists and account for runtime delegation limits. With no specialists available, they provide a sequential plan or handle the authorized task directly.
-
-To update or remove a category:
-
-```sh
-claude plugin marketplace update voltagent-subagents
-claude plugin update voltagent-core-dev@voltagent-subagents
-claude plugin uninstall voltagent-core-dev@voltagent-subagents
-```
-
-The structure follows the official [marketplace guide](https://code.claude.com/docs/en/plugin-marketplaces), [manifest reference](https://code.claude.com/docs/en/plugins-reference), and [subagent format](https://code.claude.com/docs/en/sub-agents). Use a current Claude Code version; validate your checkout with `claude plugin validate .`.
-
-## Interactive or individual installation
-
-Requires Bash 3.2+ and standard Unix utilities. SHA-256 verification uses `sha256sum` or `shasum`, available by default on typical Linux and macOS installations. Remote mode also requires `curl`. No Python, package manager, or Git clone is needed by the installer.
-
-From a checkout, no network is used:
+<details>
+<summary><strong>Interactive installer</strong> · browse categories and select individual agents</summary>
 
 ```sh
+git clone https://github.com/crankyjediii/claude-code-subagents.git
+cd claude-code-subagents
 bash install-agents.sh
-bash install-agents.sh --list
-bash install-agents.sh --install python-specialist,code-reviewer --global
-bash install-agents.sh --install --category voltagent-infra --project .
-bash install-agents.sh --install --all --project . --dry-run
 ```
 
-The interactive browser shows categories, lists their agents, and accepts comma-separated names or the whole category. It supports install and uninstall and asks for confirmation. Explicit CLI actions run immediately. The default CLI target is `.claude/agents/` in the current directory; `--global` uses `~/.claude/agents/`. `--project DIRECTORY` and `--target DIRECTORY` select another target.
+Choose project or global scope, browse a category, and select names or the full category. The browser supports installation and removal. Explicit CLI commands are also available:
 
-For standalone use, download the script, inspect it, and run it:
+```sh
+bash install-agents.sh --install python-specialist,code-reviewer --project .
+bash install-agents.sh --install --category voltagent-infra --global --dry-run
+```
+
+</details>
+
+<details>
+<summary><strong>Standalone installer</strong> · no clone required</summary>
+
+Download and inspect the script, then run it:
 
 ```sh
 curl --fail --location --proto '=https' --proto-redir '=https' \
@@ -64,35 +69,85 @@ curl --fail --location --proto '=https' --proto-redir '=https' \
 bash install-agents.sh --standalone
 ```
 
-Override the source with `--repo OWNER/REPOSITORY` and `--ref BRANCH-TAG-OR-COMMIT`. A commit ref gives repeatable downloads; a branch can change while a batch is downloading, in which case checksum verification fails before any agents are written. Checksums detect mismatched content; they are fetched from the same source and are not an independent signature.
+Requires Bash 3.2+, standard Unix utilities, `curl`, and `sha256sum` or `shasum`. The script downloads only the selected definitions. For repeatable downloads, pin the script URL and `--ref` to the same commit. The [installation guide](docs/INSTALLATION.md) covers source overrides, conflict handling, and recovery.
 
-Downloads are staged and verified for the entire selection before installation. Each agent file is replaced by atomic rename; a batch is not a filesystem transaction. A disk error or process interruption during writes may leave a partially installed batch. Rerun the command to finish. Do not run multiple installers against the same target concurrently.
+</details>
 
-The installer records ownership in `.voltagent-state/` inside the target directory. Existing unmanaged or edited agents are protected. `--force` backs up conflicting content in `.voltagent-backups/` before replacement or removal. Updates to unedited managed agents also save the old content. Symlinked targets, selected agent files, and installer state are refused; macOS system aliases `/tmp`, `/var`, and `/etc` are normalized first. Keep backups until you no longer need them; remove those directories manually when appropriate.
+<details>
+<summary><strong>Manual installation</strong> · copy a definition you have reviewed</summary>
+
+From a checkout:
 
 ```sh
-bash install-agents.sh --installed --global
-bash install-agents.sh --uninstall python-specialist --global
-bash install-agents.sh --uninstall --all --project . --dry-run
+mkdir -p .claude/agents
+cp categories/02-language-specialists/agents/python-specialist.md .claude/agents/
 ```
 
-Explicit-name and `--all` uninstalls work offline from ownership records, even if an agent has been removed upstream. Category uninstalls use the catalog and require every selected agent to be managed in that target. Unrelated files are never selected by `--uninstall --all`. Use plugin uninstall commands for agents installed as plugins.
+Use `~/.claude/agents/` for global availability. Manual copies are not owned by the shell installer; remove them manually or explicitly adopt them with the installer's backed-up `--force` operation.
 
-## Let Claude Code install agents
+</details>
 
-Copy [agent-installer.md](agent-installer.md) into `.claude/agents/agent-installer.md` for a project or `~/.claude/agents/agent-installer.md` globally. Restart the session, then ask: “Use agent-installer to install the Python specialist into this project.” The definition contains source discovery, target selection, and installer instructions; it does not depend on being copied with the repository.
+<details>
+<summary><strong>Agent installer</strong> · ask Claude Code to browse and install</summary>
 
-Avoid installing the same specialists through multiple mechanisms unless you intend to manage separate copies. Plugins provide namespaced agents; copied agents use their frontmatter names and project copies take precedence over user copies.
+Place [agent-installer.md](agent-installer.md) in the intended agents directory:
 
-## Category index
+```sh
+mkdir -p .claude/agents
+curl --fail --location --proto '=https' --proto-redir '=https' \
+  https://raw.githubusercontent.com/crankyjediii/claude-code-subagents/main/agent-installer.md \
+  -o .claude/agents/agent-installer.md
+```
 
-This index, each category README, the count badge, catalog checksums, and manifests are generated from the agent files by `python3 tools/sync.py`. The last-update badge reads the latest commit on `main`.
+Review the file, start a new Claude Code session, and ask: “Use agent-installer to install python-specialist in this project.” The definition includes source discovery and target selection, so it works without the rest of the checkout.
+
+</details>
+
+For updates, uninstalling, scope precedence, and troubleshooting, use the [installation guide](docs/INSTALLATION.md).
+
+## Usage
+
+Start a new Claude Code session after installation and check `/agents`. Name the specialist and give it a bounded task:
+
+```text
+Use the code-reviewer agent from voltagent-quality to review the current diff.
+Focus on retry behavior and duplicate side effects. Report findings with file
+locations and a concrete failure scenario; do not modify the patch.
+```
+
+Useful starting points:
+
+- **Implement a server feature:** `backend-developer` in `voltagent-core-dev`.
+- **Trace a defect and repair it:** `debugging-specialist` in `voltagent-dx`.
+- **Review an existing change:** `code-reviewer` in `voltagent-quality`.
+- **Map an unfamiliar repository:** `codebase-explorer` in `voltagent-research`.
+- **Plan work across specialists:** `agent-organizer` in `voltagent-meta`.
+
+Specify the expected result, constraints, relevant files, and checks. The [usage guide](docs/USAGE.md) explains overlapping roles, tool profiles, and a complete agent definition.
+
+## Categories
 
 <!-- catalog:start -->
 
-### Core development
+| Category | Plugin | Agents |
+| :-- | :-- | --: |
+| [01 · Core development](categories/01-core-development/README.md) | `voltagent-core-dev` | 17 |
+| [02 · Language specialists](categories/02-language-specialists/README.md) | `voltagent-lang` | 17 |
+| [03 · Infrastructure and operations](categories/03-infrastructure/README.md) | `voltagent-infra` | 17 |
+| [04 · Quality and security](categories/04-quality-security/README.md) | `voltagent-quality` | 17 |
+| [05 · Data and AI](categories/05-data-ai/README.md) | `voltagent-data-ai` | 17 |
+| [06 · Developer experience](categories/06-developer-experience/README.md) | `voltagent-dx` | 17 |
+| [07 · Specialized domains](categories/07-specialized-domains/README.md) | `voltagent-domains` | 17 |
+| [08 · Product and delivery](categories/08-business-product/README.md) | `voltagent-product` | 17 |
+| [09 · Meta orchestration](categories/09-meta-orchestration/README.md) | `voltagent-meta` | 17 |
+| [10 · Research and analysis](categories/10-research-analysis/README.md) | `voltagent-research` | 17 |
 
-[`01-core-development`](categories/01-core-development/README.md) · `voltagent-core-dev` · 17 agents
+Expand a category to browse its agents.
+
+<details>
+<summary><strong>01 · Core development</strong> · 17 agents</summary>
+
+Plugin: `voltagent-core-dev` · [Category guide](categories/01-core-development/README.md)
 
 - [api-designer](categories/01-core-development/agents/api-designer.md): Design HTTP API contracts and compatibility rules.
 - [authentication-engineer](categories/01-core-development/agents/authentication-engineer.md): Implement login, sessions, and account recovery.
@@ -112,9 +167,12 @@ This index, each category README, the count badge, catalog checksums, and manife
 - [search-engineer](categories/01-core-development/agents/search-engineer.md): Implement application search and relevance tuning.
 - [websocket-engineer](categories/01-core-development/agents/websocket-engineer.md): Build persistent bidirectional messaging flows.
 
-### Language specialists
+</details>
 
-[`02-language-specialists`](categories/02-language-specialists/README.md) · `voltagent-lang` · 17 agents
+<details>
+<summary><strong>02 · Language specialists</strong> · 17 agents</summary>
+
+Plugin: `voltagent-lang` · [Category guide](categories/02-language-specialists/README.md)
 
 - [c-specialist](categories/02-language-specialists/agents/c-specialist.md): Implement C with explicit bounds and resource cleanup.
 - [cpp-specialist](categories/02-language-specialists/agents/cpp-specialist.md): Implement C++ with explicit ownership and lifetime guarantees.
@@ -134,9 +192,12 @@ This index, each category README, the count badge, catalog checksums, and manife
 - [swift-specialist](categories/02-language-specialists/agents/swift-specialist.md): Implement Swift features with clear isolation and value semantics.
 - [typescript-specialist](categories/02-language-specialists/agents/typescript-specialist.md): Model TypeScript boundaries and strengthen type safety.
 
-### Infrastructure and operations
+</details>
 
-[`03-infrastructure`](categories/03-infrastructure/README.md) · `voltagent-infra` · 17 agents
+<details>
+<summary><strong>03 · Infrastructure and operations</strong> · 17 agents</summary>
+
+Plugin: `voltagent-infra` · [Category guide](categories/03-infrastructure/README.md)
 
 - [backup-engineer](categories/03-infrastructure/agents/backup-engineer.md): Implement backups with tested recovery behavior.
 - [ci-pipeline-engineer](categories/03-infrastructure/agents/ci-pipeline-engineer.md): Make CI workflows repeatable and useful to contributors.
@@ -156,9 +217,12 @@ This index, each category README, the count badge, catalog checksums, and manife
 - [site-reliability-engineer](categories/03-infrastructure/agents/site-reliability-engineer.md): Diagnose reliability gaps using service-level evidence.
 - [terraform-engineer](categories/03-infrastructure/agents/terraform-engineer.md): Manage infrastructure as code with controlled state changes.
 
-### Quality and security
+</details>
 
-[`04-quality-security`](categories/04-quality-security/README.md) · `voltagent-quality` · 17 agents
+<details>
+<summary><strong>04 · Quality and security</strong> · 17 agents</summary>
+
+Plugin: `voltagent-quality` · [Category guide](categories/04-quality-security/README.md)
 
 - [accessibility-auditor](categories/04-quality-security/agents/accessibility-auditor.md): Review interfaces for keyboard and assistive-technology barriers.
 - [chaos-engineer](categories/04-quality-security/agents/chaos-engineer.md): Test system recovery through bounded failure experiments.
@@ -178,9 +242,12 @@ This index, each category README, the count badge, catalog checksums, and manife
 - [test-engineer](categories/04-quality-security/agents/test-engineer.md): Design tests around behavior and failure boundaries.
 - [threat-modeler](categories/04-quality-security/agents/threat-modeler.md): Model application threats and concrete mitigation boundaries.
 
-### Data and AI
+</details>
 
-[`05-data-ai`](categories/05-data-ai/README.md) · `voltagent-data-ai` · 17 agents
+<details>
+<summary><strong>05 · Data and AI</strong> · 17 agents</summary>
+
+Plugin: `voltagent-data-ai` · [Category guide](categories/05-data-ai/README.md)
 
 - [analytics-engineer](categories/05-data-ai/agents/analytics-engineer.md): Build auditable analytical models and metric definitions.
 - [computer-vision-engineer](categories/05-data-ai/agents/computer-vision-engineer.md): Implement image-model pipelines and evaluate visual failure modes.
@@ -200,9 +267,12 @@ This index, each category README, the count badge, catalog checksums, and manife
 - [stream-processing-engineer](categories/05-data-ai/agents/stream-processing-engineer.md): Process event streams with explicit time and state semantics.
 - [vector-search-engineer](categories/05-data-ai/agents/vector-search-engineer.md): Design embedding indexes and approximate-nearest-neighbor retrieval.
 
-### Developer experience
+</details>
 
-[`06-developer-experience`](categories/06-developer-experience/README.md) · `voltagent-dx` · 17 agents
+<details>
+<summary><strong>06 · Developer experience</strong> · 17 agents</summary>
+
+Plugin: `voltagent-dx` · [Category guide](categories/06-developer-experience/README.md)
 
 - [api-documenter](categories/06-developer-experience/agents/api-documenter.md): Document API behavior and runnable request examples.
 - [build-engineer](categories/06-developer-experience/agents/build-engineer.md): Diagnose builds and reduce avoidable compilation work.
@@ -222,9 +292,12 @@ This index, each category README, the count badge, catalog checksums, and manife
 - [refactoring-specialist](categories/06-developer-experience/agents/refactoring-specialist.md): Restructure code while preserving externally observable behavior.
 - [repository-maintainer](categories/06-developer-experience/agents/repository-maintainer.md): Maintain repository metadata, contributor workflows, and automation.
 
-### Specialized domains
+</details>
 
-[`07-specialized-domains`](categories/07-specialized-domains/README.md) · `voltagent-domains` · 17 agents
+<details>
+<summary><strong>07 · Specialized domains</strong> · 17 agents</summary>
+
+Plugin: `voltagent-domains` · [Category guide](categories/07-specialized-domains/README.md)
 
 - [audio-engineer](categories/07-specialized-domains/agents/audio-engineer.md): Build audio processing with bounded latency and signal correctness.
 - [blockchain-engineer](categories/07-specialized-domains/agents/blockchain-engineer.md): Implement ledger integrations and smart-contract behavior.
@@ -244,9 +317,12 @@ This index, each category README, the count badge, catalog checksums, and manife
 - [storage-engineer](categories/07-specialized-domains/agents/storage-engineer.md): Implement durable storage and recoverable data structures.
 - [video-engineer](categories/07-specialized-domains/agents/video-engineer.md): Implement video pipelines with explicit timing and codec behavior.
 
-### Product and delivery
+</details>
 
-[`08-business-product`](categories/08-business-product/README.md) · `voltagent-product` · 17 agents
+<details>
+<summary><strong>08 · Product and delivery</strong> · 17 agents</summary>
+
+Plugin: `voltagent-product` · [Category guide](categories/08-business-product/README.md)
 
 - [acceptance-tester](categories/08-business-product/agents/acceptance-tester.md): Verify delivered behavior against agreed product criteria.
 - [agile-facilitator](categories/08-business-product/agents/agile-facilitator.md): Improve team planning and feedback through concrete workflow changes.
@@ -266,9 +342,12 @@ This index, each category README, the count badge, catalog checksums, and manife
 - [ux-designer](categories/08-business-product/agents/ux-designer.md): Design task flows with explicit states and interaction behavior.
 - [ux-researcher](categories/08-business-product/agents/ux-researcher.md): Plan user research and interpret evidence without invented findings.
 
-### Meta orchestration
+</details>
 
-[`09-meta-orchestration`](categories/09-meta-orchestration/README.md) · `voltagent-meta` · 17 agents
+<details>
+<summary><strong>09 · Meta orchestration</strong> · 17 agents</summary>
+
+Plugin: `voltagent-meta` · [Category guide](categories/09-meta-orchestration/README.md)
 
 - [agent-designer](categories/09-meta-orchestration/agents/agent-designer.md): Write focused Claude Code agent definitions with clear triggers.
 - [agent-organizer](categories/09-meta-orchestration/agents/agent-organizer.md): Match development tasks to installed specialist agents.
@@ -288,9 +367,12 @@ This index, each category README, the count badge, catalog checksums, and manife
 - [workflow-optimizer](categories/09-meta-orchestration/agents/workflow-optimizer.md): Reduce unnecessary coordination and repeated work in agent workflows.
 - [workflow-orchestrator](categories/09-meta-orchestration/agents/workflow-orchestrator.md): Coordinate implementation, review, and verification stages.
 
-### Research and analysis
+</details>
 
-[`10-research-analysis`](categories/10-research-analysis/README.md) · `voltagent-research` · 17 agents
+<details>
+<summary><strong>10 · Research and analysis</strong> · 17 agents</summary>
+
+Plugin: `voltagent-research` · [Category guide](categories/10-research-analysis/README.md)
 
 - [algorithm-analyst](categories/10-research-analysis/agents/algorithm-analyst.md): Analyze algorithm correctness, complexity, and practical constraints.
 - [architecture-analyst](categories/10-research-analysis/agents/architecture-analyst.md): Assess an existing system's structure and engineering tradeoffs.
@@ -310,27 +392,28 @@ This index, each category README, the count badge, catalog checksums, and manife
 - [technical-researcher](categories/10-research-analysis/agents/technical-researcher.md): Research engineering questions using verifiable primary sources.
 - [technology-evaluator](categories/10-research-analysis/agents/technology-evaluator.md): Compare technologies against a concrete development requirement.
 
+</details>
+
 <!-- catalog:end -->
 
-## Sponsorship
+## Quality
 
-No sponsors are listed yet. Paid sponsor listings belong in this section, with an explicit sponsorship label and a link to the sponsor. They do not belong in agent instructions or routing descriptions.
+The collection has a source-level review record for every category agent, with a concrete task, expected behavior, tool profile, and reviewed source digest. The [release audit](docs/AUDIT.md) records findings, fixes, and verification limits; the [per-agent review](docs/AGENT_REVIEW.md) covers all definitions.
 
-For availability and listing terms, [contact the maintainer through a sponsorship inquiry](https://github.com/crankyjediii/claude-code-subagents/issues/new?template=sponsorship.yml). Do not include private billing or contact details in a public issue.
+CI checks source structure, review coverage, generated-file drift, documentation links, ShellCheck, isolated installer behavior on Linux and macOS, and actual discovery of every plugin agent in Claude Code. Installer tests cover failed downloads, modified files, backups, lock contention, and partial-category removal.
 
-## Maintain the collection
+The review cases are illustrative examples, not a held-out benchmark. They do not establish end-to-end model performance across 170 development tasks. Review the instructions and declared tools for your environment. [Security and trust boundaries](SECURITY.md) describe what the installer and agent definitions do and do not enforce.
 
-Each `categories/NN-category/` folder is a plugin root, with definitions in `agents/`, a category README, and metadata in `.claude-plugin/plugin.json`. The root `.claude-plugin/marketplace.json` registers those ten plugins. The standard `agents/` layout is checked through Claude Code's component inventory as well as manifest validation.
+## Contributing
 
-Python 3.10+ is needed for maintenance only. Run:
+Improve an existing definition, propose a task the collection does not cover, or report a reproducible installation problem. Follow [CONTRIBUTING.md](CONTRIBUTING.md) for the format, review requirements, and maintenance commands.
 
-```sh
-python3 tools/sync.py
-python3 tools/validate.py
-python3 -m unittest discover -s tests -v
-shellcheck install-agents.sh
-```
+Agent definitions must be useful and vendor-neutral. Contributions whose main purpose is promoting a product, company, or personal project are not accepted. Category names and plugin identifiers are kept stable for existing users.
 
-`tools/validate.py` checks generated-file drift, agent structure, links, category numbering, manifests, and plugin boundaries. CI runs on Linux and macOS, tests the installer with isolated targets and mock downloads, and runs Claude Code's marketplace and plugin validator. See [CONTRIBUTING.md](CONTRIBUTING.md) for agent requirements and [docs/MAINTENANCE.md](docs/MAINTENANCE.md) for release steps.
+## Sponsors
 
-Licensed under [MIT](LICENSE).
+No sponsors are listed. Paid listings belong in this section, separate from agent instructions. [Open a sponsorship inquiry](https://github.com/crankyjediii/claude-code-subagents/issues/new?template=sponsorship.yml) for listing details; do not include private billing information in a public issue.
+
+## License
+
+[MIT](LICENSE). See [CHANGELOG.md](CHANGELOG.md) for changes and [maintenance instructions](docs/MAINTENANCE.md) for release procedures.

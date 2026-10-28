@@ -13,6 +13,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / 'install-agents.sh'
+AGENT_NAMES = {path.stem for path in (ROOT / 'categories').glob('*/agents/*.md')}
 
 
 class InstallerTests(unittest.TestCase):
@@ -61,6 +62,10 @@ if os.environ.get('MOCK_FETCH_FAIL') == relative:
     output.write_text('partial transfer')
     sys.exit(22)
 source = pathlib.Path(os.environ['FIXTURE_ROOT']) / relative
+if relative.endswith('/python-specialist.md') and os.environ.get('MOCK_DURING_DOWNLOAD_EDIT'):
+    target = pathlib.Path(os.environ['MOCK_DURING_DOWNLOAD_EDIT'])
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text('created during download')
 shutil.copyfile(source, output)
 if os.environ.get('MOCK_FETCH_TAMPER') == relative:
     with output.open('a') as stream: stream.write('tampered content')
@@ -81,9 +86,9 @@ if relative == 'tools/catalog.tsv' and os.environ.get('MOCK_BAD_PATH'):
         self.assertIn('--uninstall', result.stdout)
         self.assertFalse(self.target.exists())
 
-    def test_catalog_has_170_agents_without_target_changes(self):
+    def test_catalog_lists_every_agent_without_target_changes(self):
         result = self.run_cli('--list')
-        self.assertEqual(len(result.stdout.splitlines()), 170)
+        self.assertEqual({line.split()[0] for line in result.stdout.splitlines()}, AGENT_NAMES)
         self.assertFalse(self.target.exists())
 
     def test_local_install_and_uninstall_with_spaces(self):
@@ -102,13 +107,14 @@ if relative == 'tools/catalog.tsv' and os.environ.get('MOCK_BAD_PATH'):
 
     def test_category_plugin_and_folder_alias(self):
         self.run_cli('--install', '--category', 'voltagent-lang')
-        self.assertEqual(len(list(self.target.glob('*.md'))), 17)
+        expected = {path.stem for path in (ROOT / 'categories/02-language-specialists/agents').glob('*.md')}
+        self.assertEqual({path.stem for path in self.target.glob('*.md')}, expected)
         self.run_cli('--uninstall', '--category', '02-language-specialists')
         self.assertFalse(list(self.target.glob('*.md')))
 
     def test_install_all_then_uninstall_only_managed_files(self):
         self.run_cli('--install', '--all')
-        self.assertEqual(len(list(self.target.glob('*.md'))), 170)
+        self.assertEqual({path.stem for path in self.target.glob('*.md')}, AGENT_NAMES)
         unrelated = self.target / 'personal.md'
         unrelated.write_text('my agent')
         self.run_cli('--uninstall', '--all')
@@ -116,7 +122,7 @@ if relative == 'tools/catalog.tsv' and os.environ.get('MOCK_BAD_PATH'):
 
     def test_install_dry_run_creates_nothing(self):
         result = self.run_cli('--install', '--all', '--dry-run')
-        self.assertEqual(len(result.stdout.splitlines()), 170)
+        self.assertEqual(len(result.stdout.splitlines()), len(AGENT_NAMES))
         self.assertFalse(self.target.exists())
 
     def test_uninstall_dry_run_keeps_file_and_marker(self):
@@ -270,6 +276,94 @@ if relative == 'tools/catalog.tsv' and os.environ.get('MOCK_BAD_PATH'):
     def test_all_uninstall_with_empty_target_is_harmless(self):
         self.run_cli('--uninstall', '--all')
         self.assertFalse(self.target.exists())
+
+    def test_category_uninstall_removes_only_installed_members(self):
+        self.install('python-specialist')
+        unrelated = self.agent('ruby-specialist')
+        unrelated.write_text('personal ruby agent')
+        self.run_cli('--uninstall', '--category', 'voltagent-lang')
+        self.assertFalse(self.agent().exists())
+        self.assertEqual(unrelated.read_text(), 'personal ruby agent')
+
+    def test_empty_category_uninstall_is_harmless(self):
+        self.run_cli('--uninstall', '--category', 'voltagent-lang')
+        self.assertFalse(self.target.exists())
+
+    def test_rejects_multiline_selection_without_partial_install(self):
+        self.run_cli('--install', 'python-specialist\n,code-reviewer', success=False)
+        self.assertFalse(self.target.exists())
+
+    def test_identical_unmanaged_file_requires_explicit_adoption(self):
+        self.target.mkdir()
+        original = ROOT / 'categories/02-language-specialists/agents/python-specialist.md'
+        shutil.copyfile(original, self.agent())
+        result = self.install(success=False)
+        self.assertIn('unmanaged', result.stderr)
+        self.assertFalse((self.target / '.voltagent-state').exists())
+        self.run_cli('--install', 'python-specialist', '--force')
+        backups = list((self.target / '.voltagent-backups').glob('*/python-specialist.md'))
+        self.assertEqual(backups[0].read_bytes(), original.read_bytes())
+
+    def test_existing_target_lock_blocks_install_and_uninstall(self):
+        self.install()
+        lock = self.target / '.voltagent-lock'
+        lock.mkdir()
+        (lock / 'pid').write_text('123')
+        for args in (('--install', 'python-specialist'), ('--uninstall', 'python-specialist')):
+            result = self.run_cli(*args, success=False)
+            self.assertIn('Target is locked', result.stderr)
+            self.assertTrue(self.agent().exists())
+            self.assertEqual((lock / 'pid').read_text(), '123')
+
+    def test_successful_writes_release_their_lock(self):
+        self.install()
+        self.assertFalse((self.target / '.voltagent-lock').exists())
+        self.run_cli('--uninstall', 'python-specialist')
+        self.assertFalse((self.target / '.voltagent-lock').exists())
+
+    def test_dry_run_does_not_take_existing_lock(self):
+        self.install()
+        lock = self.target / '.voltagent-lock'
+        lock.mkdir()
+        self.run_cli('--install', 'python-specialist', '--dry-run')
+        self.assertTrue(lock.is_dir())
+
+    def test_file_created_during_download_is_not_overwritten(self):
+        result = self.remote('--install', 'python-specialist', success=False,
+                             changes={'MOCK_DURING_DOWNLOAD_EDIT': str(self.agent())})
+        self.assertIn('unmanaged', result.stderr)
+        self.assertEqual(self.agent().read_text(), 'created during download')
+        self.assertFalse((self.target / '.voltagent-state').exists())
+        self.assertFalse((self.target / '.voltagent-lock').exists())
+
+    def test_corrupt_state_is_reported_and_never_overwritten(self):
+        self.install()
+        marker = self.target / '.voltagent-state/python-specialist'
+        marker.write_text('not a checksum')
+        for args in (('--installed',), ('--install', 'python-specialist'), ('--uninstall', 'python-specialist')):
+            result = self.run_cli(*args, success=False)
+            self.assertIn('Invalid installation record', result.stderr)
+        self.assertEqual(marker.read_text(), 'not a checksum')
+        self.assertTrue(self.agent().exists())
+
+    def test_state_directory_cannot_be_a_regular_file(self):
+        self.target.mkdir()
+        (self.target / '.voltagent-state').write_text('personal file')
+        result = self.install(success=False)
+        self.assertIn('not a directory', result.stderr)
+        self.assertEqual((self.target / '.voltagent-state').read_text(), 'personal file')
+
+    def test_failed_atomic_rename_cleans_staged_files_and_lock(self):
+        mock_bin = self.base / 'bin'
+        mock_bin.mkdir()
+        wrapper = mock_bin / 'mv'
+        wrapper.write_text('#!/bin/sh\nexit 1\n')
+        wrapper.chmod(0o755)
+        env = {**self.env, 'PATH': str(mock_bin) + os.pathsep + self.env['PATH']}
+        self.install(success=False, env=env)
+        self.assertFalse(self.agent().exists())
+        self.assertFalse(list(self.target.glob('.voltagent-agent.*')))
+        self.assertFalse((self.target / '.voltagent-lock').exists())
 
     def test_missing_managed_file_can_be_uninstalled(self):
         self.install()

@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: validate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   collection:
     strategy:
@@ -24,6 +28,8 @@ jobs:
           python-version: '3.12'
       - name: Validate metadata and links
         run: python3 tools/validate.py
+      - name: Check reviewed agent coverage
+        run: python3 tools/audit_agents.py --check
       - name: Test isolated installer targets
         run: python3 -m unittest discover -s tests -v
       - name: Check Bash syntax
@@ -50,6 +56,8 @@ jobs:
         with:
           node-version: '22'
       - name: Install Claude Code validator
-        run: npm install --global @anthropic-ai/claude-code
+        run: |
+          SUBAGENT_CLI_VERSION=$(python3 -c 'import json; print(json.load(open("collection.json"))["validation"]["claude-code"])')
+          npm install --global "@anthropic-ai/claude-code@$SUBAGENT_CLI_VERSION"
       - name: Validate manifests and actual component discovery
         run: python3 tools/check_plugins.py

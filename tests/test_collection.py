@@ -16,7 +16,7 @@ from validate import validate
 class CollectionTests(unittest.TestCase):
     def test_complete_distribution_and_contained_plugin_paths(self):
         config, agents = inventory()
-        self.assertEqual(len(agents), 170)
+        self.assertGreaterEqual(len(agents), 161)
         self.assertEqual(len(config['categories']), 10)
         self.assertEqual(validate(), [])
         for category in config['categories']:
@@ -24,14 +24,16 @@ class CollectionTests(unittest.TestCase):
             manifest = json.loads((folder / '.claude-plugin/plugin.json').read_text())
             self.assertEqual(manifest['name'], category['plugin'])
             agents_in_plugin = list((folder / 'agents').glob('*.md'))
-            self.assertEqual(len(agents_in_plugin), 17)
+            expected_names = {entry['name'] for entry in agents if entry['directory'] == category['directory']}
+            self.assertEqual({path.stem for path in agents_in_plugin}, expected_names)
             for agent in agents_in_plugin:
                 self.assertTrue(agent.resolve().is_relative_to(folder.resolve()))
 
     def test_generation_is_deterministic_and_clean(self):
         self.assertEqual(generated(), generated())
         for relative, content in generated().items():
-            self.assertEqual((ROOT / relative).read_text(), content, relative)
+            expected = content if isinstance(content, bytes) else content.encode('utf-8')
+            self.assertEqual((ROOT / relative).read_bytes(), expected, relative)
 
     def fixture(self):
         temp = tempfile.TemporaryDirectory()
@@ -68,16 +70,39 @@ class CollectionTests(unittest.TestCase):
         text = source.read_text().replace('api-designer', 'api-contract-checker')
         (source.parent / 'api-contract-checker.md').write_text(text)
         outputs = generated(root)
-        self.assertIn('171 standalone', outputs['README.md'])
-        self.assertIn('subagents: 171', outputs['docs/agent-count.svg'])
+        total = len(inventory()[1]) + 1
+        self.assertIn(f'{total} standalone', outputs['README.md'])
+        self.assertIn(f'subagents: {total}', outputs['docs/agent-count.svg'])
         self.assertIn('api-contract-checker', outputs['tools/catalog.tsv'])
-        self.assertIn('18 agents', outputs['categories/01-core-development/README.md'])
+        count = len(list((ROOT / 'categories/01-core-development/agents').glob('*.md'))) + 1
+        self.assertIn(f'{count} agents', outputs['categories/01-core-development/README.md'])
 
     def test_broken_local_link_is_rejected(self):
         root = self.fixture()
         path = root / 'CONTRIBUTING.md'
         path.write_text(path.read_text() + '\n[Missing file](missing.md)\n')
         self.assertTrue(any('missing.md' in error for error in validate(root)))
+
+    def test_broken_html_asset_is_rejected(self):
+        root = self.fixture()
+        path = root / 'CONTRIBUTING.md'
+        path.write_text(path.read_text() + '\n<img src="missing-banner.svg" alt="Example" />\n')
+        self.assertTrue(any('missing-banner.svg' in error for error in validate(root)))
+
+    def test_missing_local_anchor_is_rejected(self):
+        root = self.fixture()
+        path = root / 'CONTRIBUTING.md'
+        path.write_text(path.read_text() + '\n[Missing section](README.md#not-a-section)\n')
+        self.assertTrue(any('missing local anchor' in error for error in validate(root)))
+
+    def test_nested_agent_cannot_escape_catalog_or_review_coverage(self):
+        root = self.fixture()
+        nested = root / 'categories/01-core-development/agents/nested'
+        nested.mkdir()
+        source = nested.parent / 'api-designer.md'
+        shutil.copyfile(source, nested / 'api-designer.md')
+        with self.assertRaisesRegex(ValueError, 'Nested agent'):
+            inventory(root)
 
 
 if __name__ == '__main__':

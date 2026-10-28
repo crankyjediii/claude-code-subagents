@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1560 540" width="1560" height="540" role="img" aria-labelledby="title desc">
+<title id="title">Claude Code Subagents</title>
+<desc id="desc">A specialist for the next task. 170 development agents across 10 categories.</desc>
+<rect width="1560" height="540" rx="20" fill="#141f1c"/>
+<path d="M930 56V444M64 454H1496" stroke="#3b5146"/>
+<g font-family="Arial,Helvetica,sans-serif">
+<text x="72" y="89" fill="#c8ec9a" font-size="17" letter-spacing="3.2">CLAUDE CODE SUBAGENTS</text>
+<g font-family="Georgia,Times,serif" font-size="85" fill="#f3f1e7">
+<text x="65" y="214">A specialist for</text><text x="65" y="310">the next task.</text>
+</g>
+<text x="72" y="381" fill="#a7b6ac" font-size="23">Development agents with explicit scope and verification.</text>
+<rect x="1000" y="88" width="216" height="52" rx="8" fill="#1c2b26" stroke="#3b5146"/><circle cx="1024" cy="114" r="5" fill="#c8ec9a"/><text x="1044" y="119" fill="#e7eadf" font-size="14" letter-spacing="1">CORE</text><rect x="1238" y="88" width="216" height="52" rx="8" fill="#1c2b26" stroke="#3b5146"/><circle cx="1262" cy="114" r="5" fill="#a8caf5"/><text x="1282" y="119" fill="#e7eadf" font-size="14" letter-spacing="1">LANGUAGES</text><rect x="1000" y="156" width="216" height="52" rx="8" fill="#1c2b26" stroke="#3b5146"/><circle cx="1024" cy="182" r="5" fill="#ebbc88"/><text x="1044" y="187" fill="#e7eadf" font-size="14" letter-spacing="1">INFRA</text><rect x="1238" y="156" width="216" height="52" rx="8" fill="#1c2b26" stroke="#3b5146"/><circle cx="1262" cy="182" r="5" fill="#eaa6b1"/><text x="1282" y="187" fill="#e7eadf" font-size="14" letter-spacing="1">QUALITY</text><rect x="1000" y="224" width="216" height="52" rx="8" fill="#1c2b26" stroke="#3b5146"/><circle cx="1024" cy="250" r="5" fill="#b8b0ec"/><text x="1044" y="255" fill="#e7eadf" font-size="14" letter-spacing="1">DATA + AI</text><rect x="1238" y="224" width="216" height="52" rx="8" fill="#1c2b26" stroke="#3b5146"/><circle cx="1262" cy="250" r="5" fill="#99d8cd"/><text x="1282" y="255" fill="#e7eadf" font-size="14" letter-spacing="1">DEV TOOLS</text><rect x="1000" y="292" width="216" height="52" rx="8" fill="#1c2b26" stroke="#3b5146"/><circle cx="1024" cy="318" r="5" fill="#d7cb83"/><text x="1044" y="323" fill="#e7eadf" font-size="14" letter-spacing="1">SYSTEMS</text><rect x="1238" y="292" width="216" height="52" rx="8" fill="#1c2b26" stroke="#3b5146"/><circle cx="1262" cy="318" r="5" fill="#e5b8d9"/><text x="1282" y="323" fill="#e7eadf" font-size="14" letter-spacing="1">PRODUCT</text><rect x="1000" y="360" width="216" height="52" rx="8" fill="#1c2b26" stroke="#3b5146"/><circle cx="1024" cy="386" r="5" fill="#a6d2b1"/><text x="1044" y="391" fill="#e7eadf" font-size="14" letter-spacing="1">ORCHESTRATION</text><rect x="1238" y="360" width="216" height="52" rx="8" fill="#1c2b26" stroke="#3b5146"/><circle cx="1262" cy="386" r="5" fill="#a6cbd8"/><text x="1282" y="391" fill="#e7eadf" font-size="14" letter-spacing="1">RESEARCH</text>
+<g font-size="16" letter-spacing="1.2">
+<text x="72" y="501" fill="#c8ec9a">170 AGENTS</text>
+<text x="296" y="501" fill="#c8ec9a">10 CATEGORIES</text>
+<text x="561" y="501" fill="#a7b6ac">MODEL: INHERIT</text>
+<text x="1296" y="501" fill="#a7b6ac">MIT LICENSE</text>
+</g></g></svg>

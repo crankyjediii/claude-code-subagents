@@ -6,4 +6,5 @@ __pycache__/
 .claude/agents/
 .voltagent-state/
 .voltagent-backups/
+.voltagent-lock/
 dist/

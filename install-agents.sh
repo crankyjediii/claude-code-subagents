@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bash 3.2+; curl and a SHA-256 utility are needed only for remote operations.
+# Bash 3.2+; writes need a SHA-256 utility, and remote reads also need curl.
 set -euo pipefail
 IFS=$'\n\t'
 
@@ -17,6 +17,10 @@ REMOTE=0
 TEMP_DIR=''
 BACKUP_DIR=''
 CATALOG=''
+LOCK_DIR=''
+LOCK_HELD=0
+STAGED_FILE=''
+STAGED_STATE=''
 NAMES=()
 PATHS=()
 HASHES=()
@@ -62,7 +66,15 @@ USAGE
 
 die() { printf 'Error: %s\n' "$*" >&2; exit 1; }
 log() { printf '%s\n' "$*" >&2; }
-cleanup() { if [[ -n "$TEMP_DIR" && -d "$TEMP_DIR" ]]; then rm -rf -- "$TEMP_DIR"; fi; }
+cleanup() {
+    if [[ -n "$STAGED_FILE" ]]; then rm -f -- "$STAGED_FILE"; fi
+    if [[ -n "$STAGED_STATE" ]]; then rm -f -- "$STAGED_STATE"; fi
+    if [[ "$LOCK_HELD" == 1 ]]; then
+        rm -f -- "$LOCK_DIR/pid"
+        rmdir -- "$LOCK_DIR" || log "Could not remove installer lock: $LOCK_DIR"
+    fi
+    if [[ -n "$TEMP_DIR" && -d "$TEMP_DIR" ]]; then rm -rf -- "$TEMP_DIR"; fi
+}
 need_value() { [[ $# -ge 2 && -n "$2" && "$2" != --* ]] || die "Missing value for $1"; }
 valid_name() { [[ "$1" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; }
 set_action() {
@@ -93,8 +105,11 @@ parse_args() {
             *) die "Unknown argument: $1 (see --help)" ;;
         esac
     done
-    [[ "$REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die 'Invalid GitHub repository.'
-    [[ "$REF" =~ ^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*$ && "$REF" != *..* ]] || die 'Invalid ref.'
+    [[ "$REPOSITORY" =~ ^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9_.-]+$ && "${REPOSITORY#*/}" != . && "${REPOSITORY#*/}" != .. ]] || die 'Invalid GitHub repository.'
+    [[ "$REF" =~ ^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*$ && "$REF" != *..* && "$REF" != . && "$REF" != ./* && "$REF" != */./* && "$REF" != */. ]] || die 'Invalid ref.'
+    if [[ -n "$SELECTION" ]]; then
+        [[ "$SELECTION" =~ ^[a-z0-9]+(-[a-z0-9]+)*(,[a-z0-9]+(-[a-z0-9]+)*)*$ ]] || die 'Invalid agent selection; use comma-separated names on one line.'
+    fi
     [[ -z "$SOURCE" || "$REMOTE" == 0 ]] || die 'Choose --local or a remote source.'
     if [[ -n "$CATEGORY" ]]; then valid_name "$CATEGORY" || die 'Invalid category.'; fi
     local selectors=0
@@ -165,7 +180,7 @@ show_catalog() {
 choose_agents() {
     local i cat plugin ignored wanted seen
     if [[ -n "$SELECTION" ]]; then
-        [[ "$SELECTION" != ,* && "$SELECTION" != *, && "$SELECTION" != *,,* ]] || die 'Empty agent name.'
+        [[ "$SELECTION" =~ ^[a-z0-9]+(-[a-z0-9]+)*(,[a-z0-9]+(-[a-z0-9]+)*)*$ ]] || die 'Invalid agent selection; use comma-separated names on one line.'
         local requested=()
         IFS=',' read -r -a requested <<< "$SELECTION"
         for wanted in "${requested[@]}"; do
@@ -207,6 +222,8 @@ check_target() {
         current="$parent"
     done
     [[ ! -L "$TARGET/.voltagent-state" && ! -L "$TARGET/.voltagent-backups" ]] || die 'Symlinked installer state.'
+    [[ ! -e "$TARGET/.voltagent-state" || -d "$TARGET/.voltagent-state" ]] || die 'Installer state is not a directory.'
+    [[ ! -e "$TARGET/.voltagent-backups" || -d "$TARGET/.voltagent-backups" ]] || die 'Installer backups path is not a directory.'
     [[ ! -e "$TARGET" || -d "$TARGET" ]] || die 'Target is not a directory.'
     local i name
     for i in "${SELECTED[@]+"${SELECTED[@]}"}"; do
@@ -215,6 +232,24 @@ check_target() {
         [[ ! -e "$TARGET/$name.md" || -f "$TARGET/$name.md" ]] || die "Agent path is not a regular file: $name"
         [[ ! -e "$TARGET/.voltagent-state/$name" || -f "$TARGET/.voltagent-state/$name" ]] || die "Invalid state path: $name"
     done
+}
+
+acquire_lock() {
+    [[ "$DRY_RUN" == 0 ]] || return 0
+    mkdir -p -- "$TARGET"
+    LOCK_DIR="$TARGET/.voltagent-lock"
+    if ! mkdir -- "$LOCK_DIR" 2>/dev/null; then
+        die "Target is locked: $LOCK_DIR. If a previous run was killed, confirm it is no longer running before removing this lock directory."
+    fi
+    LOCK_HELD=1
+    printf '%s\n' "$$" > "$LOCK_DIR/pid"
+}
+
+state_hash() {
+    local digest
+    digest=$(cat "$TARGET/.voltagent-state/$1")
+    [[ "$digest" =~ ^[a-f0-9]{64}$ ]] || die "Invalid installation record: $1"
+    printf '%s\n' "$digest"
 }
 
 backup_file() {
@@ -228,20 +263,26 @@ backup_file() {
     log "Backed up: $file -> $BACKUP_DIR"
 }
 
-install_selected() {
-    local i name file expected actual prior
+check_install_conflicts() {
+    local i name file actual prior
     check_target
-    # All conflicts are checked before downloads or writes.
     for i in "${SELECTED[@]}"; do
         name="${NAMES[$i]}"; file="$TARGET/$name.md"
+        prior=''
+        if [[ -f "$TARGET/.voltagent-state/$name" ]]; then prior=$(state_hash "$name"); fi
         if [[ -f "$file" ]]; then
-            actual=$(hash_file "$file"); prior=''
-            if [[ -f "$TARGET/.voltagent-state/$name" ]]; then prior=$(cat "$TARGET/.voltagent-state/$name"); fi
-            if [[ "$actual" != "${HASHES[$i]}" && ( -z "$prior" || "$actual" != "$prior" ) && "$FORCE" == 0 ]]; then
+            actual=$(hash_file "$file")
+            if [[ ( -z "$prior" || ( "$actual" != "${HASHES[$i]}" && "$actual" != "$prior" ) ) && "$FORCE" == 0 ]]; then
                 die "Refusing to overwrite unmanaged or modified agent: $name (use --force to back up)."
             fi
         fi
     done
+}
+
+install_selected() {
+    local i name file expected actual prior
+    # Check before network access, then recheck after staging under a target lock.
+    check_install_conflicts
     if [[ "$DRY_RUN" == 1 ]]; then
         for i in "${SELECTED[@]}"; do printf 'Would install %s -> %s\n' "${NAMES[$i]}" "$TARGET"; done
         return
@@ -255,18 +296,20 @@ install_selected() {
         IFS= read -r prior < "$TEMP_DIR/$name.md"
         [[ "$prior" == '---' ]] || die "Invalid agent Markdown: $name"
     done
+    check_target
+    acquire_lock
+    check_install_conflicts
     mkdir -p -- "$TARGET/.voltagent-state"
-    local staged staged_state
     for i in "${SELECTED[@]}"; do
         name="${NAMES[$i]}"; file="$TARGET/$name.md"
-        if [[ -f "$file" && "$(hash_file "$file")" != "${HASHES[$i]}" ]]; then backup_file "$file"; fi
+        if [[ -f "$file" && ( ! -f "$TARGET/.voltagent-state/$name" || "$(hash_file "$file")" != "${HASHES[$i]}" ) ]]; then backup_file "$file"; fi
         # Temp files in the destination filesystem allow atomic rename per file.
-        staged=$(mktemp "$TARGET/.voltagent-agent.XXXXXXXX")
-        cp -- "$TEMP_DIR/$name.md" "$staged"; chmod 644 "$staged"
-        mv -f -- "$staged" "$file"
-        staged_state=$(mktemp "$TARGET/.voltagent-state/.pending.XXXXXXXX")
-        printf '%s\n' "${HASHES[$i]}" > "$staged_state"
-        mv -f -- "$staged_state" "$TARGET/.voltagent-state/$name"
+        STAGED_FILE=$(mktemp "$TARGET/.voltagent-agent.XXXXXXXX")
+        cp -- "$TEMP_DIR/$name.md" "$STAGED_FILE"; chmod 644 "$STAGED_FILE"
+        mv -f -- "$STAGED_FILE" "$file"; STAGED_FILE=''
+        STAGED_STATE=$(mktemp "$TARGET/.voltagent-state/.pending.XXXXXXXX")
+        printf '%s\n' "${HASHES[$i]}" > "$STAGED_STATE"
+        mv -f -- "$STAGED_STATE" "$TARGET/.voltagent-state/$name"; STAGED_STATE=''
         log "Installed: $name"
     done
 }
@@ -274,11 +317,20 @@ install_selected() {
 uninstall_selected() {
     local i name file prior
     check_target
+    if [[ -n "$CATEGORY" ]]; then
+        local managed=()
+        for i in "${SELECTED[@]}"; do
+            if [[ -f "$TARGET/.voltagent-state/${NAMES[$i]}" ]]; then managed+=("$i"); fi
+        done
+        if [[ ${#managed[@]} == 0 ]]; then log 'No managed agents in this category.'; return; fi
+        SELECTED=("${managed[@]}")
+    fi
+    acquire_lock
+    check_target
     for i in "${SELECTED[@]}"; do
         name="${NAMES[$i]}"; file="$TARGET/$name.md"
         [[ -f "$TARGET/.voltagent-state/$name" ]] || die "Not managed by this installer: $name"
-        prior=$(cat "$TARGET/.voltagent-state/$name")
-        [[ "$prior" =~ ^[a-f0-9]{64}$ ]] || die "Invalid installation record: $name"
+        prior=$(state_hash "$name")
         if [[ -f "$file" && "$(hash_file "$file")" != "$prior" && "$FORCE" == 0 ]]; then
             die "Refusing to remove modified agent: $name (use --force to back up)."
         fi
@@ -286,7 +338,7 @@ uninstall_selected() {
     for i in "${SELECTED[@]}"; do
         name="${NAMES[$i]}"; file="$TARGET/$name.md"
         if [[ "$DRY_RUN" == 1 ]]; then printf 'Would uninstall %s from %s\n' "$name" "$TARGET"; continue; fi
-        if [[ -f "$file" && "$(hash_file "$file")" != "$(cat "$TARGET/.voltagent-state/$name")" ]]; then backup_file "$file"; fi
+        if [[ -f "$file" && "$(hash_file "$file")" != "$(state_hash "$name")" ]]; then backup_file "$file"; fi
         rm -f -- "$file" "$TARGET/.voltagent-state/$name"
         log "Uninstalled: $name"
     done
@@ -308,7 +360,7 @@ managed_catalog() {
 show_installed() {
     local name state prior
     for name in "${NAMES[@]+"${NAMES[@]}"}"; do
-        state='missing'; prior=$(cat "$TARGET/.voltagent-state/$name")
+        state='missing'; prior=$(state_hash "$name")
         if [[ -L "$TARGET/$name.md" ]]; then state='symlink (not followed)'
         elif [[ -f "$TARGET/$name.md" ]]; then
             state='modified'

@@ -11,7 +11,7 @@ Read the user's request and repository instructions. Determine whether they want
 
 ## Find and review the source
 
-1. If the current repository has `collection.json`, `tools/catalog.tsv`, and `install-agents.sh`, verify its repository identity and use the local installer. Otherwise create a temporary directory and download `install-agents.sh` from the canonical repository's raw GitHub main URL using curl with HTTPS-only redirects and failure handling. Inspect the downloaded script before executing it. Use a user-specified fork or immutable commit instead when requested.
+1. If the current repository has `collection.json`, `tools/catalog.tsv`, and `install-agents.sh`, verify its repository identity and use the local installer. Otherwise resolve the requested repository ref to a published commit, create a temporary directory, and download `install-agents.sh` from the canonical repository's raw GitHub URL at that commit using curl with HTTPS-only redirects and failure handling. Inspect the downloaded script before executing it. Pin catalog downloads, definition previews, and installation to the same commit with `--ref`. Use a user-specified fork or version when requested.
 2. Run `bash install-agents.sh --list` locally or add `--standalone` for the downloaded script. Match requested names or category plugin names to the catalog. Do not invent agent names or construct paths from unvalidated input.
 3. For each proposed definition, read its frontmatter and body from the local category file or the corresponding HTTPS raw URL. Check that it describes the requested task, declares plausible tools, and contains no product promotion or instructions to bypass project permissions. Stop and report unexpected content.
 
@@ -21,7 +21,7 @@ Use noninteractive flags and quote all paths. For a project Python install, run 
 
 When the installer refuses modified or unmanaged files, read the conflicting files and explain the conflict. Preserve customizations. Use `--force` only if replacement or removal has been authorized; the installer saves backups. Never delete unrelated agent files. For uninstall, use the same target scope and `--uninstall NAME` or `--uninstall --all` for an explicit request to remove all managed agents. Plugin-managed agents must be removed through `claude plugin uninstall` instead.
 
-For a category-plugin request, register the canonical marketplace with `claude plugin marketplace add crankyjediii/claude-code-subagents`, then install `PLUGIN@voltagent-subagents` using the category's actual plugin name. `voltagent-meta` works best with specialists from other categories installed; disclose that dependency without installing extra categories automatically.
+For a category-plugin request, register the canonical marketplace with `claude plugin marketplace add crankyjediii/claude-code-subagents`, then install `PLUGIN@voltagent-subagents` using the category's actual plugin name. Run from the intended project directory with `--scope project` for a project request or `--scope user` for a global request. Do not rely on the CLI's default user scope when the intended scope is the project. `voltagent-meta` works best with specialists from other categories installed; disclose that dependency without installing extra categories automatically.
 
 ## Completion
 

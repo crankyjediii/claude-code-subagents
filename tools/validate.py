@@ -5,10 +5,41 @@ from __future__ import annotations
 import json
 import re
 import sys
+from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 from sync import ROOT, frontmatter, generated, inventory
+
+
+class HTMLReferences(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.targets = []
+        self.ids = set()
+
+    def handle_starttag(self, tag, attrs):
+        for key, value in attrs:
+            if key in {'href', 'src'} and value:
+                self.targets.append(value)
+            if key == 'id' and value:
+                self.ids.add(value)
+
+
+def references(file: Path) -> tuple[list[str], set[str]]:
+    text = re.sub(r'```.*?```', '', file.read_text(), flags=re.DOTALL)
+    parser = HTMLReferences()
+    parser.feed(text)
+    targets = re.findall(r'!?\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)', text) + parser.targets
+    ids = set(parser.ids)
+    seen = {}
+    for heading in re.findall(r'^#{1,6}\s+(.+?)\s*#*$', text, flags=re.MULTILINE):
+        plain = re.sub(r'<[^>]*>|[`*_~]', '', heading).lower()
+        slug = re.sub(r'[^\w -]', '', plain).replace(' ', '-')
+        number = seen.get(slug, 0)
+        seen[slug] = number + 1
+        ids.add(slug if number == 0 else f'{slug}-{number}')
+    return targets, ids
 
 
 def validate(root: Path = ROOT) -> list[str]:
@@ -20,7 +51,8 @@ def validate(root: Path = ROOT) -> list[str]:
         return [str(error)]
     for relative, content in expected.items():
         path = root / relative
-        if not path.is_file() or path.read_text() != content:
+        data = content if isinstance(content, bytes) else content.encode('utf-8')
+        if not path.is_file() or path.read_bytes() != data:
             errors.append(f'Stale generated file: {relative}; run python3 tools/sync.py')
     market = json.loads(expected['.claude-plugin/marketplace.json'])
     for entry in market['plugins']:
@@ -49,16 +81,17 @@ def validate(root: Path = ROOT) -> list[str]:
     for file in sorted(root.rglob('*.md')):
         if '.git' in file.parts:
             continue
-        text = file.read_text()
-        # Fenced snippets are not documentation links.
-        text = re.sub(r'```.*?```', '', text, flags=re.DOTALL)
-        for target in re.findall(r'!?\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)', text):
+        targets, _ = references(file)
+        for target in targets:
             split = urlsplit(target.strip('<>'))
-            if split.scheme or split.netloc or not split.path:
+            if split.scheme or split.netloc:
                 continue
-            dest = (file.parent / unquote(split.path)).resolve()
+            dest = (file.parent / unquote(split.path)).resolve() if split.path else file.resolve()
             if not dest.is_relative_to(root.resolve()) or not dest.exists():
                 errors.append(f'{file.relative_to(root)}: broken or escaping local link {target}')
+            elif split.fragment and dest.is_file() and dest.suffix in {'.md', '.svg'}:
+                if unquote(split.fragment) not in references(dest)[1]:
+                    errors.append(f'{file.relative_to(root)}: missing local anchor {target}')
     return errors
 
 
