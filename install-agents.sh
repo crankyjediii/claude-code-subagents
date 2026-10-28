@@ -7,6 +7,10 @@ REPOSITORY='crankyjediii/claude-code-subagents'
 REF='main'
 SOURCE=''
 TARGET=''
+CLIENT='claude'
+SCOPE=''
+PROJECT=''
+EXT='md'
 ACTION='interactive'
 SELECTION=''
 CATEGORY=''
@@ -42,9 +46,10 @@ Actions:
   --uninstall --all             Remove all managed agents
   --install --category SLUG     Install one category (folder or plugin name)
 
-Targets (default: .claude/agents in the current directory):
-  --global                     Use ~/.claude/agents
-  --project DIRECTORY          Use DIRECTORY/.claude/agents
+Targets (default: selected client agents directory in the current directory):
+  --client NAME                claude (default), codex, cursor, or opencode
+  --global                     Use the selected client's user agents directory
+  --project DIRECTORY          Use the selected client under DIRECTORY
   --target DIRECTORY           Use an explicit agents directory
 
 Sources:
@@ -92,9 +97,10 @@ parse_args() {
             --install|--uninstall)
                 set_action "${1#--}"; shift
                 if [[ $# -gt 0 && "$1" != --* ]]; then SELECTION="$1"; shift; fi ;;
-            --global) [[ -z "$TARGET" ]] || die 'Choose one target.'; TARGET="$HOME/.claude/agents"; shift ;;
-            --project) need_value "$@"; [[ -z "$TARGET" ]] || die 'Choose one target.'; TARGET="$2/.claude/agents"; shift 2 ;;
+            --global) [[ -z "$TARGET" ]] || die 'Choose one target.'; SCOPE=global; TARGET='scope'; shift ;;
+            --project) need_value "$@"; [[ -z "$TARGET" ]] || die 'Choose one target.'; SCOPE=project; PROJECT="$2"; TARGET=scope; shift 2 ;;
             --target) need_value "$@"; [[ -z "$TARGET" ]] || die 'Choose one target.'; TARGET="$2"; shift 2 ;;
+            --client) need_value "$@"; CLIENT="$2"; shift 2 ;;
             --local) need_value "$@"; SOURCE="$2"; shift 2 ;;
             --standalone) REMOTE=1; shift ;;
             --repo) need_value "$@"; REPOSITORY="$2"; REMOTE=1; shift 2 ;;
@@ -106,6 +112,12 @@ parse_args() {
             *) die "Unknown argument: $1 (see --help)" ;;
         esac
     done
+    case "$CLIENT" in
+        claude|cursor|opencode) EXT=md ;;
+        codex) EXT=toml ;;
+        *) die "Unknown client: $CLIENT (choose claude, codex, cursor, opencode)" ;;
+    esac
+    if [[ -n "$SCOPE" ]]; then TARGET=$(client_target "$SCOPE" "${PROJECT:-$PWD}"); fi
     [[ "$REPOSITORY" =~ ^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9_.-]+$ && "${REPOSITORY#*/}" != . && "${REPOSITORY#*/}" != .. ]] || die 'Invalid GitHub repository.'
     [[ "$REF" =~ ^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*$ && "$REF" != *..* && "$REF" != . && "$REF" != ./* && "$REF" != */./* && "$REF" != */. ]] || die 'Invalid ref.'
     if [[ -n "$SELECTION" ]]; then
@@ -124,6 +136,48 @@ parse_args() {
         installed) [[ "$selectors" == 0 ]] || die '--installed does not accept selectors.' ;;
         interactive) [[ "$selectors" == 0 ]] || die 'Selectors require --install, --uninstall, or --list.' ;;
     esac
+}
+
+client_target() {
+    local scope="$1" project="$2"
+    if [[ "$scope" == global ]]; then
+        case "$CLIENT" in
+            codex) printf '%s/agents\n' "${CODEX_HOME:-$HOME/.codex}" ;;
+            opencode) printf '%s/opencode/agents\n' "${XDG_CONFIG_HOME:-$HOME/.config}" ;;
+            *) printf '%s/.%s/agents\n' "$HOME" "$CLIENT" ;;
+        esac
+    else
+        printf '%s/.%s/agents\n' "$project" "$CLIENT"
+    fi
+}
+
+render_agent() {
+    [[ "$CLIENT" != claude ]] || return 0
+    command -v python3 >/dev/null 2>&1 || die 'Non-Claude formats require Python 3.'
+    python3 - "$CLIENT" "$1" <<'PYTHON'
+import json
+import pathlib
+import sys
+client, filename = sys.argv[1:]
+path = pathlib.Path(filename)
+text = path.read_text(encoding="utf-8")
+_, header, body = text.split("---", 2)
+metadata = dict(line.split(":", 1) for line in header.strip().splitlines())
+name = metadata["name"].strip()
+description = metadata["description"].strip()
+# The collection uses JSON-compatible quoted YAML descriptions.
+if description.startswith('"'):
+    description = json.loads(description)
+body = body.lstrip("\n")
+quote = lambda value: json.dumps(value, ensure_ascii=False)
+if client == "codex":
+    output = "".join(f"{key} = {quote(value)}\n" for key, value in (
+        ("name", name), ("description", description), ("developer_instructions", body)))
+else:
+    extra = "mode: subagent\n" if client == "opencode" else ""
+    output = f"---\nname: {name}\ndescription: {quote(description)}\n{extra}---\n\n{body}"
+path.write_text(output, encoding="utf-8")
+PYTHON
 }
 
 hash_file() {
@@ -229,8 +283,8 @@ check_target() {
     local i name
     for i in "${SELECTED[@]+"${SELECTED[@]}"}"; do
         name="${NAMES[$i]}"
-        [[ ! -L "$TARGET/$name.md" && ! -L "$TARGET/.voltagent-state/$name" ]] || die "Symlinked agent or state: $name"
-        [[ ! -e "$TARGET/$name.md" || -f "$TARGET/$name.md" ]] || die "Agent path is not a regular file: $name"
+        [[ ! -L "$TARGET/$name.$EXT" && ! -L "$TARGET/.voltagent-state/$name" ]] || die "Symlinked agent or state: $name"
+        [[ ! -e "$TARGET/$name.$EXT" || -f "$TARGET/$name.$EXT" ]] || die "Agent path is not a regular file: $name"
         [[ ! -e "$TARGET/.voltagent-state/$name" || -f "$TARGET/.voltagent-state/$name" ]] || die "Invalid state path: $name"
     done
 }
@@ -268,7 +322,7 @@ check_install_conflicts() {
     local i name file actual prior
     check_target
     for i in "${SELECTED[@]}"; do
-        name="${NAMES[$i]}"; file="$TARGET/$name.md"
+        name="${NAMES[$i]}"; file="$TARGET/$name.$EXT"
         prior=''
         if [[ -f "$TARGET/.voltagent-state/$name" ]]; then prior=$(state_hash "$name"); fi
         if [[ -f "$file" ]]; then
@@ -296,13 +350,15 @@ install_selected() {
         [[ "$actual" == "$expected" ]] || die "Checksum mismatch: $name"
         IFS= read -r prior < "$TEMP_DIR/$name.md"
         [[ "$prior" == '---' ]] || die "Invalid agent Markdown: $name"
+        render_agent "$TEMP_DIR/$name.md"
+        HASHES[$i]=$(hash_file "$TEMP_DIR/$name.md")
     done
     check_target
     acquire_lock
     check_install_conflicts
     mkdir -p -- "$TARGET/.voltagent-state"
     for i in "${SELECTED[@]}"; do
-        name="${NAMES[$i]}"; file="$TARGET/$name.md"
+        name="${NAMES[$i]}"; file="$TARGET/$name.$EXT"
         if [[ -f "$file" && ( ! -f "$TARGET/.voltagent-state/$name" || "$(hash_file "$file")" != "${HASHES[$i]}" ) ]]; then backup_file "$file"; fi
         # Temp files in the destination filesystem allow atomic rename per file.
         STAGED_FILE=$(mktemp "$TARGET/.voltagent-agent.XXXXXXXX")
@@ -329,7 +385,7 @@ uninstall_selected() {
     acquire_lock
     check_target
     for i in "${SELECTED[@]}"; do
-        name="${NAMES[$i]}"; file="$TARGET/$name.md"
+        name="${NAMES[$i]}"; file="$TARGET/$name.$EXT"
         [[ -f "$TARGET/.voltagent-state/$name" ]] || die "Not managed by this installer: $name"
         prior=$(state_hash "$name")
         if [[ -f "$file" && "$(hash_file "$file")" != "$prior" && "$FORCE" == 0 ]]; then
@@ -337,7 +393,7 @@ uninstall_selected() {
         fi
     done
     for i in "${SELECTED[@]}"; do
-        name="${NAMES[$i]}"; file="$TARGET/$name.md"
+        name="${NAMES[$i]}"; file="$TARGET/$name.$EXT"
         if [[ "$DRY_RUN" == 1 ]]; then printf 'Would uninstall %s from %s\n' "$name" "$TARGET"; continue; fi
         if [[ -f "$file" && "$(hash_file "$file")" != "$(state_hash "$name")" ]]; then backup_file "$file"; fi
         rm -f -- "$file" "$TARGET/.voltagent-state/$name"
@@ -362,10 +418,10 @@ show_installed() {
     local name state prior
     for name in "${NAMES[@]+"${NAMES[@]}"}"; do
         state='missing'; prior=$(state_hash "$name")
-        if [[ -L "$TARGET/$name.md" ]]; then state='symlink (not followed)'
-        elif [[ -f "$TARGET/$name.md" ]]; then
+        if [[ -L "$TARGET/$name.$EXT" ]]; then state='symlink (not followed)'
+        elif [[ -f "$TARGET/$name.$EXT" ]]; then
             state='modified'
-            if [[ "$(hash_file "$TARGET/$name.md")" == "$prior" ]]; then state='installed'; fi
+            if [[ "$(hash_file "$TARGET/$name.$EXT")" == "$prior" ]]; then state='installed'; fi
         fi
         printf '%-32s %s\n' "$name" "$state"
     done
@@ -377,7 +433,7 @@ interactive() {
     if [[ -z "$TARGET" ]]; then
         printf 'Install scope: [p]roject here or [g]lobal? [p] '
         read -r answer || exit 0
-        case "$answer" in g|global) TARGET="$HOME/.claude/agents" ;; ''|p|project) TARGET="$PWD/.claude/agents" ;; *) die 'Invalid scope.' ;; esac
+        case "$answer" in g|global) TARGET=$(client_target global "$PWD") ;; ''|p|project) TARGET=$(client_target project "$PWD") ;; *) die 'Invalid scope.' ;; esac
     fi
     printf '\nTarget: %s\n' "$TARGET"
     local choices=()
@@ -423,7 +479,7 @@ main() {
         [[ -d "$SOURCE" ]] || die 'Local repository does not exist.'
         SOURCE=$(cd -- "$SOURCE" && pwd -P)
     elif [[ "$REMOTE" == 0 && -f "$script_dir/tools/catalog.tsv" ]]; then SOURCE="$script_dir"; fi
-    if [[ "$ACTION" != interactive && -z "$TARGET" ]]; then TARGET="$PWD/.claude/agents"; fi
+    if [[ "$ACTION" != interactive && -z "$TARGET" ]]; then TARGET=$(client_target project "$PWD"); fi
     # Make relative target paths unambiguous, including paths beginning with '-'.
     if [[ -n "$TARGET" && "$TARGET" != /* ]]; then TARGET="$PWD/$TARGET"; fi
     case "$ACTION" in

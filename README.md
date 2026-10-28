@@ -18,13 +18,51 @@
   <a href="#installation">Install</a> · <a href="#usage">Use an agent</a> · <a href="#categories">Browse categories</a> · <a href="#quality">Quality and audit</a> · <a href="CONTRIBUTING.md">Contribute</a>
 </p>
 
-170 standalone development agents in 10 categories. Install the categories you use as Claude Code plugins, or copy individual Markdown definitions into a project or your user agents directory.
+170 standalone development agents in 10 categories. Install agents for Claude Code, Codex, Cursor, or OpenCode in a project or your user agents directory. Claude Code also supports category plugins.
 
 Each agent has a specific routing trigger, a workflow, a concrete example task, and checks for its result. Definitions inherit your session's model. Tool access varies by role: a code reviewer can inspect files, an implementation agent can edit and run commands, and research agents can fetch sources. See [tool profiles](docs/USAGE.md#tool-profiles) before extending them.
 
 ## Installation
 
 For versioned downloads, use the [latest release](https://github.com/crankyjediii/claude-code-subagents/releases/latest): full source archives, ten category plugin ZIPs, a commit-pinned installer, and SHA-256 checksums. See [release verification](docs/INSTALLATION.md#versioned-release-downloads).
+
+### Codex, Cursor, and OpenCode
+
+Select the client when installing, updating, listing installed agents, or uninstalling:
+
+```sh
+bash install-agents.sh --client codex --install python-specialist,code-reviewer --project .
+bash install-agents.sh --client cursor --install --category voltagent-lang --global
+bash install-agents.sh --client opencode --install python-specialist --project .
+bash install-agents.sh --client codex --installed --project .
+bash install-agents.sh --client codex --uninstall python-specialist --project .
+```
+
+| Client | Project directory | Global directory | Format |
+| --- | --- | --- | --- |
+| Claude Code (default) | `.claude/agents/` | `~/.claude/agents/` | Markdown |
+| Codex | `.codex/agents/` | `$CODEX_HOME/agents/` or `~/.codex/agents/` | TOML |
+| Cursor | `.cursor/agents/` | `~/.cursor/agents/` | Markdown |
+| OpenCode | `.opencode/agents/` | `$XDG_CONFIG_HOME/opencode/agents/` or `~/.config/opencode/agents/` | Markdown with `mode: subagent` |
+
+Non-Claude conversion requires Python 3. The standalone script includes the converter.
+The installer verifies the source checksum before conversion and tracks the generated
+file's checksum for updates and removal. `--target` overrides the directory while
+`--client` still selects the format. Repeat the same client and scope for every operation;
+use separate directories for different clients.
+
+Converted definitions preserve the name, routing description, and complete instruction
+body. Claude-specific tool lists and model fields are omitted; the destination client
+controls permissions, available tools, and model selection. These exports do not reproduce
+Claude's per-agent tool allowlists. Review permissions in the destination client before use,
+especially for agents intended only to inspect files. Workflows may mention Claude tool
+names; use the destination client's equivalent capabilities. Restart or reload the client
+after installation if the agents do not appear. Category marketplace plugins remain
+Claude Code only.
+
+Formats and discovery paths follow the official [Codex subagent documentation](https://learn.chatgpt.com/docs/agent-configuration/subagents),
+[Cursor subagent documentation](https://cursor.com/docs/subagents), and
+[OpenCode agent documentation](https://opencode.ai/docs/agents/).
 
 ### Category plugins
 

@@ -118,3 +118,41 @@ Normal exit and handled termination clean up the lock and pending temporary file
 - **Checksum mismatch:** retry with the script and `--ref` pinned to the same commit. Do not disable verification.
 - **Invalid ownership record:** inspect the record and file together. Restore the original record from trusted evidence or treat the file as a manual copy; do not invent a digest to bypass a conflict.
 - **Scope confusion:** use `--installed` against the same target used for installation. Global and project directories are independent.
+
+### Codex, Cursor, and OpenCode
+
+Select the client when installing, updating, listing installed agents, or uninstalling:
+
+```sh
+bash install-agents.sh --client codex --install python-specialist,code-reviewer --project .
+bash install-agents.sh --client cursor --install --category voltagent-lang --global
+bash install-agents.sh --client opencode --install python-specialist --project .
+bash install-agents.sh --client codex --installed --project .
+bash install-agents.sh --client codex --uninstall python-specialist --project .
+```
+
+| Client | Project directory | Global directory | Format |
+| --- | --- | --- | --- |
+| Claude Code (default) | `.claude/agents/` | `~/.claude/agents/` | Markdown |
+| Codex | `.codex/agents/` | `$CODEX_HOME/agents/` or `~/.codex/agents/` | TOML |
+| Cursor | `.cursor/agents/` | `~/.cursor/agents/` | Markdown |
+| OpenCode | `.opencode/agents/` | `$XDG_CONFIG_HOME/opencode/agents/` or `~/.config/opencode/agents/` | Markdown with `mode: subagent` |
+
+Non-Claude conversion requires Python 3. The standalone script includes the converter.
+The installer verifies the source checksum before conversion and tracks the generated
+file's checksum for updates and removal. `--target` overrides the directory while
+`--client` still selects the format. Repeat the same client and scope for every operation;
+use separate directories for different clients.
+
+Converted definitions preserve the name, routing description, and complete instruction
+body. Claude-specific tool lists and model fields are omitted; the destination client
+controls permissions, available tools, and model selection. These exports do not reproduce
+Claude's per-agent tool allowlists. Review permissions in the destination client before use,
+especially for agents intended only to inspect files. Workflows may mention Claude tool
+names; use the destination client's equivalent capabilities. Restart or reload the client
+after installation if the agents do not appear. Category marketplace plugins remain
+Claude Code only.
+
+Formats and discovery paths follow the official [Codex subagent documentation](https://learn.chatgpt.com/docs/agent-configuration/subagents),
+[Cursor subagent documentation](https://cursor.com/docs/subagents), and
+[OpenCode agent documentation](https://opencode.ai/docs/agents/).

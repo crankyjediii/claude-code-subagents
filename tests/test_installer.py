@@ -196,6 +196,50 @@ if relative == 'tools/catalog.tsv' and os.environ.get('MOCK_BAD_PATH'):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertTrue((expected / 'python-specialist.md').is_file())
 
+    def test_client_formats_lifecycle(self):
+        import tomllib
+        for client, extension in [('codex', 'toml'), ('cursor', 'md'), ('opencode', 'md')]:
+            with self.subTest(client=client):
+                self.run_cli('--client', client, '--install', 'python-specialist')
+                file = self.target / f'python-specialist.{extension}'
+                content = file.read_text()
+                if client == 'codex':
+                    data = tomllib.loads(content)
+                    self.assertEqual(data['name'], 'python-specialist')
+                    self.assertIn('You are the python specialist.', data['developer_instructions'])
+                else:
+                    self.assertIn('name: python-specialist', content)
+                    self.assertNotIn('tools:', content.split('---')[1])
+                    self.assertNotIn('model:', content.split('---')[1])
+                    if client == 'opencode': self.assertIn('mode: subagent', content)
+                self.run_cli('--client', client, '--install', 'python-specialist')
+                self.assertFalse((self.target / '.voltagent-backups').exists())
+                result = self.run_cli('--client', client, '--installed')
+                self.assertIn('installed', result.stdout)
+                file.write_text('customized')
+                self.run_cli('--client', client, '--uninstall', '--all', success=False)
+                self.run_cli('--client', client, '--uninstall', '--all', '--force')
+                self.assertFalse(file.exists())
+                backup = next((self.target / '.voltagent-backups').glob(f'*/python-specialist.{extension}'))
+                self.assertEqual(backup.read_text(), 'customized')
+                shutil.rmtree(self.target)
+
+    def test_client_paths_and_argument_order(self):
+        for client, global_path in [('codex', '.codex/agents'), ('cursor', '.cursor/agents'),
+                                    ('opencode', '.config/opencode/agents')]:
+            for scope in ('global', 'project'):
+                flags = ['--global'] if scope == 'global' else ['--project', str(self.base / 'project')]
+                result = subprocess.run(['/bin/bash', str(SCRIPT), *flags, '--client', client,
+                                         '--install', 'python-specialist'], cwd=self.base,
+                                        env=self.env, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                target = self.home / global_path if scope == 'global' else self.base / 'project' / f'.{client}/agents'
+                self.assertTrue((target / ('python-specialist.toml' if client == 'codex' else 'python-specialist.md')).exists())
+
+    def test_unknown_client_is_rejected(self):
+        self.run_cli('--client', 'unknown', '--install', '--all', success=False)
+        self.assertFalse(self.target.exists())
+
     def test_noninteractive_without_action_has_clear_error(self):
         result = self.run_cli(success=False)
         self.assertIn('terminal', result.stderr)
